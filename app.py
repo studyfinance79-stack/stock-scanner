@@ -2,96 +2,15 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import requests
-import textwrap
 
 # ---------------------------------------------------------
-# Page Configuration & Custom CSS Injection
+# Page Configuration
 # ---------------------------------------------------------
 st.set_page_config(page_title="Pro Stock Technical Scanner", layout="wide", page_icon="📈")
 
-# Inject Custom High-Contrast CSS
-st.markdown("""
-<style>
-    .stApp {
-        background-color: #0E1117;
-        color: #E0E0E0;
-    }
-    
-    .main-title {
-        text-align: center;
-        font-size: 2.2rem;
-        font-weight: 700;
-        color: #FFFFFF;
-        margin-bottom: 0.2rem;
-        letter-spacing: 0.5px;
-    }
-    .sub-title {
-        text-align: center;
-        font-size: 1rem;
-        color: #8B949E;
-        margin-bottom: 2rem;
-    }
-
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 3rem;
-    }
-    
-    .custom-table-container {
-        width: 100%;
-        overflow-x: auto;
-        margin-top: 1.5rem;
-        border-radius: 8px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-    }
-    .styled-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-        font-size: 0.95rem;
-        background-color: #161B22;
-        color: #F0F6FC;
-        border: 1px solid #30363D;
-    }
-    .styled-table th {
-        background-color: #21262D;
-        color: #58A6FF;
-        padding: 14px 16px;
-        text-align: center !important;
-        font-weight: 600;
-        border-bottom: 2px solid #30363D;
-        letter-spacing: 0.5px;
-    }
-    .styled-table td {
-        padding: 12px 16px;
-        text-align: center !important;
-        vertical-align: middle;
-        border-bottom: 1px solid #21262D;
-    }
-    .styled-table tr:hover {
-        background-color: #1C2128;
-    }
-    
-    .badge-hold {
-        background-color: rgba(38, 166, 154, 0.15);
-        color: #26A69A;
-        border: 1px solid #26A69A;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-weight: 600;
-        display: inline-block;
-    }
-    .badge-sell {
-        background-color: rgba(239, 83, 80, 0.15);
-        color: #EF5350;
-        border: 1px solid #EF5350;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-weight: 600;
-        display: inline-block;
-    }
-</style>
-""", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>📊 Pro Stock Technical Scanner</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #8B949E;'>Real-time TradingView RSI & EMA Trend Signals</p>", unsafe_allow_html=True)
+st.markdown("---")
 
 # ---------------------------------------------------------
 # Sidebar Setup
@@ -103,7 +22,7 @@ telegram_token = st.sidebar.text_input("Bot Token", type="password", help="Bot T
 telegram_chat_id = st.sidebar.text_input("Chat ID", help="Your personal or group Chat ID")
 
 # ---------------------------------------------------------
-# Session State for Dynamic Stock Management
+# Session State for Dynamic Stock List
 # ---------------------------------------------------------
 if "stocks" not in st.session_state:
     st.session_state.stocks = [
@@ -120,19 +39,13 @@ def add_stock_callback():
         st.session_state.new_stock_input = ""
 
 # ---------------------------------------------------------
-# Page Header
-# ---------------------------------------------------------
-st.markdown("<div class='main-title'>📊 Pro Stock Technical Scanner</div>", unsafe_allow_html=True)
-st.markdown("<div class='sub-title'>Real-time TradingView RSI & EMA Trend Signals</div>", unsafe_allow_html=True)
-
-# ---------------------------------------------------------
-# Stock Addition & Management Bar
+# Stock Addition Bar
 # ---------------------------------------------------------
 col1, col2 = st.columns([3, 1])
 
 with col1:
     st.text_input(
-        "➕ Add Stock Name (Press Enter to add):",
+        "➕ Add Stock Name (Type ticker & press Enter):",
         key="new_stock_input",
         placeholder="e.g. RELIANCE, TATAMOTORS, INFY",
         on_change=add_stock_callback
@@ -151,7 +64,7 @@ if st.session_state.stocks:
 st.markdown("---")
 
 # ---------------------------------------------------------
-# Indicator Calculation Functions
+# Calculation Helpers
 # ---------------------------------------------------------
 def send_telegram_alert(token, chat_id, message):
     if not token or not chat_id:
@@ -209,9 +122,9 @@ def fetch_stock_data(ticker_symbol):
         return {
             "Stock Name": ticker_symbol.replace(".NS", ""),
             "Current Price": f"₹{curr_price:,.2f}",
-            "Monthly RSI": round(r_m, 2),
-            "Weekly RSI": round(r_w, 2),
             "Daily RSI": round(r_d, 2),
+            "Weekly RSI": round(r_w, 2),
+            "Monthly RSI": round(r_m, 2),
             "Signal": signal,
             "EMA20": e20
         }
@@ -219,20 +132,15 @@ def fetch_stock_data(ticker_symbol):
         return None
 
 # ---------------------------------------------------------
-# Scan Execution & Render
+# Execution & Display
 # ---------------------------------------------------------
-scan_btn = st.button("🚀 Run Technical Scan", type="primary", use_container_width=True)
-
-if scan_btn or "initial_scan" not in st.session_state:
-    st.session_state.initial_scan = True
-    
+if st.button("🚀 Run Technical Scan", type="primary", use_container_width=True):
     if not st.session_state.stocks:
-        st.warning("⚠️ Stock list is empty. Please add at least one stock name above.")
+        st.warning("⚠️ Stock list is empty. Add stock names above.")
     else:
-        with st.spinner("Scanning market technicals..."):
+        with st.spinner("Scanning market data..."):
             results = []
             sell_alerts = []
-            
             for symbol in st.session_state.stocks:
                 data = fetch_stock_data(symbol)
                 if data:
@@ -241,59 +149,35 @@ if scan_btn or "initial_scan" not in st.session_state:
                         sell_alerts.append(data)
 
         if results:
-            rows_html = ""
-            for idx, row in enumerate(results, start=1):
-                badge_class = "badge-sell" if "SELL" in row["Signal"] else "badge-hold"
-                rows_html += f"""
-                    <tr>
-                        <td><strong>{idx}</strong></td>
-                        <td style="font-weight: 600; color: #58A6FF;">{row['Stock Name']}</td>
-                        <td><strong>{row['Current Price']}</strong></td>
-                        <td>{row['Daily RSI']}</td>
-                        <td>{row['Weekly RSI']}</td>
-                        <td>{row['Monthly RSI']}</td>
-                        <td><span class="{badge_class}">{row['Signal']}</span></td>
-                    </tr>
-                """
-
-            table_html = f"""
-            <div class="custom-table-container">
-                <table class="styled-table">
-                    <thead>
-                        <tr>
-                            <th>Serial No.</th>
-                            <th>Stock Name</th>
-                            <th>Current Price</th>
-                            <th>Daily RSI</th>
-                            <th>Weekly RSI</th>
-                            <th>Monthly RSI</th>
-                            <th>Signal</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {rows_html}
-                    </tbody>
-                </table>
-            </div>
-            """
+            df = pd.DataFrame(results)
             
-            st.markdown(textwrap.dedent(table_html), unsafe_allow_html=True)
-            st.write("")
+            # Start Index at 1 for Serial No.
+            df.index = range(1, len(df) + 1)
+            df.index.name = "Serial No."
 
+            display_cols = ["Stock Name", "Current Price", "Daily RSI", "Weekly RSI", "Monthly RSI", "Signal"]
+            
+            # Render Clean Native Table
+            st.dataframe(
+                df[display_cols],
+                use_container_width=True,
+                column_config={
+                    "Signal": st.column_config.TextColumn("Signal", help="🟢 HOLD or 🔴 SELL"),
+                }
+            )
+
+            # Telegram Dispatch
             if sell_alerts:
                 if telegram_token and telegram_chat_id:
                     alert_msg = "🚨 *STOCK SCANNER SELL ALERT* 🚨\n\n"
                     for item in sell_alerts:
-                        alert_msg += (
-                            f"• *{item['Stock Name']}*\n"
-                            f"  Price: {item['Current Price']} (EMA20: ₹{item['EMA20']:.2f})\n"
-                            f"  Daily RSI: {item['Daily RSI']} | Signal: SELL\n\n"
-                        )
+                        alert_msg += f"• *{item['Stock Name']}* | Price: {item['Current Price']} | Daily RSI: {item['Daily RSI']}\n"
+                    
                     if send_telegram_alert(telegram_token, telegram_chat_id, alert_msg):
-                        st.success(f"📲 Telegram alert sent for {len(sell_alerts)} SELL signal(s)!")
+                        st.success(f"📲 Telegram alert sent for {len(sell_alerts)} stock(s)!")
                     else:
-                        st.error("❌ Telegram dispatch failed. Check Token and Chat ID.")
+                        st.error("❌ Telegram alert failed. Check Bot Token and Chat ID.")
                 else:
-                    st.info("ℹ️ SELL signals present. Enter Telegram Token/Chat ID in sidebar to receive alerts.")
+                    st.info("ℹ️ SELL signals present. Enter Telegram Token/Chat ID in sidebar to get alerts.")
             else:
                 st.success("✅ All scanned stocks are in 🟢 HOLD state.")
