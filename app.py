@@ -2,6 +2,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import requests
+import textwrap
 
 # ---------------------------------------------------------
 # Page Configuration & Custom CSS Injection
@@ -11,13 +12,11 @@ st.set_page_config(page_title="Pro Stock Technical Scanner", layout="wide", page
 # Inject Custom High-Contrast CSS
 st.markdown("""
 <style>
-    /* Dark Theme Core Styles */
     .stApp {
         background-color: #0E1117;
         color: #E0E0E0;
     }
     
-    /* Header Styling */
     .main-title {
         text-align: center;
         font-size: 2.2rem;
@@ -33,13 +32,11 @@ st.markdown("""
         margin-bottom: 2rem;
     }
 
-    /* Custom Input & Card Containers */
     .block-container {
         padding-top: 2rem;
         padding-bottom: 3rem;
     }
     
-    /* Custom Table Styling */
     .custom-table-container {
         width: 100%;
         overflow-x: auto;
@@ -75,7 +72,6 @@ st.markdown("""
         background-color: #1C2128;
     }
     
-    /* Signal Badges */
     .badge-hold {
         background-color: rgba(38, 166, 154, 0.15);
         color: #26A69A;
@@ -118,7 +114,6 @@ if "stocks" not in st.session_state:
 def add_stock_callback():
     val = st.session_state.new_stock_input.strip().upper()
     if val:
-        # Clean ticker symbol
         clean_val = val.replace(".NS", "").replace(".BO", "")
         if clean_val not in st.session_state.stocks:
             st.session_state.stocks.append(clean_val)
@@ -144,13 +139,12 @@ with col1:
     )
 
 with col2:
-    st.write(" ") # Spacing align
+    st.write(" ")
     st.write(" ")
     if st.button("🗑️ Clear Stock List"):
         st.session_state.stocks = []
         st.rerun()
 
-# Display current stock tags
 if st.session_state.stocks:
     st.write("**Tracked Stocks:** " + " • ".join([f"`{s}`" for s in st.session_state.stocks]))
 
@@ -209,7 +203,6 @@ def fetch_stock_data(ticker_symbol):
         r_w = float(rsi_weekly_s.iloc[-1]) if len(rsi_weekly_s) > 0 else 0.0
         r_m = float(rsi_monthly_s.iloc[-1]) if len(rsi_monthly_s) > 0 else 0.0
 
-        # Signal Logic
         sell_condition = (r_d < 50) or (curr_price < e20)
         signal = "🔴 SELL" if sell_condition else "🟢 HOLD"
 
@@ -220,7 +213,6 @@ def fetch_stock_data(ticker_symbol):
             "Weekly RSI": round(r_w, 2),
             "Daily RSI": round(r_d, 2),
             "Signal": signal,
-            "RawPrice": curr_price,
             "EMA20": e20
         }
     except Exception:
@@ -249,8 +241,22 @@ if scan_btn or "initial_scan" not in st.session_state:
                         sell_alerts.append(data)
 
         if results:
-            # Build Custom Centered HTML Table
-            table_html = """
+            rows_html = ""
+            for idx, row in enumerate(results, start=1):
+                badge_class = "badge-sell" if "SELL" in row["Signal"] else "badge-hold"
+                rows_html += f"""
+                    <tr>
+                        <td><strong>{idx}</strong></td>
+                        <td style="font-weight: 600; color: #58A6FF;">{row['Stock Name']}</td>
+                        <td><strong>{row['Current Price']}</strong></td>
+                        <td>{row['Daily RSI']}</td>
+                        <td>{row['Weekly RSI']}</td>
+                        <td>{row['Monthly RSI']}</td>
+                        <td><span class="{badge_class}">{row['Signal']}</span></td>
+                    </tr>
+                """
+
+            table_html = f"""
             <div class="custom-table-container">
                 <table class="styled-table">
                     <thead>
@@ -265,32 +271,15 @@ if scan_btn or "initial_scan" not in st.session_state:
                         </tr>
                     </thead>
                     <tbody>
-            """
-            
-            for idx, row in enumerate(results, start=1):
-                badge_class = "badge-sell" if "SELL" in row["Signal"] else "badge-hold"
-                table_html += f"""
-                    <tr>
-                        <td><strong>{idx}</strong></td>
-                        <td style="font-weight: 600; color: #58A6FF;">{row['Stock Name']}</td>
-                        <td><strong>{row['Current Price']}</strong></td>
-                        <td>{row['Daily RSI']}</td>
-                        <td>{row['Weekly RSI']}</td>
-                        <td>{row['Monthly RSI']}</td>
-                        <td><span class="{badge_class}">{row['Signal']}</span></td>
-                    </tr>
-                """
-            
-            table_html += """
+                        {rows_html}
                     </tbody>
                 </table>
             </div>
             """
             
-            st.markdown(table_html, unsafe_allow_html=True)
+            st.markdown(textwrap.dedent(table_html), unsafe_allow_html=True)
             st.write("")
 
-            # Handle Telegram Dispatch
             if sell_alerts:
                 if telegram_token and telegram_chat_id:
                     alert_msg = "🚨 *STOCK SCANNER SELL ALERT* 🚨\n\n"
