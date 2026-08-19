@@ -68,6 +68,8 @@ THEME_CSS = {
         .styled-table td { border-bottom: 1px solid #523E07 !important; }
         .styled-table tr:hover { background-color: #664E09 !important; }
         .text-primary-header { color: #FDE047 !important; }
+        .stock-link { color: #FDE047 !important; }
+        .stock-link:hover { color: #38BDF8 !important; text-decoration: underline !important; }
     </style>
     """,
     "Navy Blue Honeycomb": """
@@ -92,6 +94,8 @@ THEME_CSS = {
         .styled-table td { border-bottom: 1px solid #1E293B !important; }
         .styled-table tr:hover { background-color: #1E293B !important; }
         .text-primary-header { color: #38BDF8 !important; }
+        .stock-link { color: #38BDF8 !important; }
+        .stock-link:hover { color: #FACC15 !important; text-decoration: underline !important; }
     </style>
     """,
     "Dark Bottle Green (Ficus Motif)": """
@@ -116,6 +120,8 @@ THEME_CSS = {
         .styled-table td { border-bottom: 1px solid #113E2E !important; }
         .styled-table tr:hover { background-color: #164E3A !important; }
         .text-primary-header { color: #FACC15 !important; }
+        .stock-link { color: #FACC15 !important; }
+        .stock-link:hover { color: #38BDF8 !important; text-decoration: underline !important; }
     </style>
     """,
     "Metallic Silver Rhombus": """
@@ -140,6 +146,8 @@ THEME_CSS = {
         .styled-table td { border-bottom: 1px solid #E2E8F0 !important; color: #0F172A !important; }
         .styled-table tr:hover { background-color: #F1F5F9 !important; }
         .text-primary-header { color: #1E3A8A !important; }
+        .stock-link { color: #0284C7 !important; }
+        .stock-link:hover { color: #0369A1 !important; text-decoration: underline !important; }
     </style>
     """
 }
@@ -185,6 +193,14 @@ st.markdown("""
         padding: 12px 10px;
         text-align: center !important;
         vertical-align: middle;
+    }
+    .stock-link {
+        text-decoration: none;
+        font-weight: 700;
+        transition: all 0.2s ease-in-out;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
     }
     .led-yes {
         background-color: rgba(34, 197, 94, 0.2);
@@ -324,12 +340,12 @@ def fetch_stock_data(ticker_symbol):
         r_w = float(rsi_weekly_s.iloc[-1]) if len(rsi_weekly_s) > 0 else 0.0
         r_m = float(rsi_monthly_s.iloc[-1]) if len(rsi_monthly_s) > 0 else 0.0
 
-        # UPDATED SELL CONDITION: Requires BOTH Price < EMA 20 AND Daily RSI < 50
+        # SELL condition requires BOTH Price < EMA 20 AND Daily RSI < 50
         sell_condition = (curr_price < e20) and (r_d < 50)
         signal = "🔴 SELL" if sell_condition else "🟢 HOLD"
 
         return {
-            "Stock Name": ticker_symbol.replace(".NS", ""),
+            "Stock Name": ticker_symbol.replace(".NS", "").replace(".BO", ""),
             "Current Price": f"₹{curr_price:,.2f}",
             "Daily RSI": round(r_d, 2),
             "Weekly RSI": round(r_w, 2),
@@ -358,11 +374,15 @@ if st.button("🚀 Run Technical Scan", type="primary", use_container_width=True
                     results.append(data)
 
         if results:
-            # Construct Centered Table HTML without indentation bugs
             table_rows = []
             for idx, row in enumerate(results, start=1):
                 badge_cls = "badge-sell" if "SELL" in row["Signal"] else "badge-hold"
                 
+                # TradingView Chart Link (NSE exchange, Daily Timeframe)
+                stock_name = row['Stock Name']
+                tv_chart_url = f"https://www.tradingview.com/chart/?symbol=NSE:{stock_name}&interval=D"
+                stock_link_html = f"<a href='{tv_chart_url}' target='_blank' class='stock-link' title='Click to open {stock_name} Daily Chart on TradingView'>📈 {stock_name} ↗</a>"
+
                 led_20 = '<span class="led-yes">🟢 YES</span>' if row["EMA20_Check"] else '<span class="led-no">🔴 NO</span>'
                 led_50 = '<span class="led-yes">🟢 YES</span>' if row["EMA50_Check"] else '<span class="led-no">🔴 NO</span>'
                 led_100 = '<span class="led-yes">🟢 YES</span>' if row["EMA100_Check"] else '<span class="led-no">🔴 NO</span>'
@@ -371,7 +391,7 @@ if st.button("🚀 Run Technical Scan", type="primary", use_container_width=True
                 table_rows.append(
                     f"<tr>"
                     f"<td><strong>{idx}</strong></td>"
-                    f"<td style='font-weight: 700;'>{row['Stock Name']}</td>"
+                    f"<td>{stock_link_html}</td>"
                     f"<td><strong>{row['Current Price']}</strong></td>"
                     f"<td>{row['Daily RSI']}</td>"
                     f"<td>{row['Weekly RSI']}</td>"
@@ -392,7 +412,7 @@ if st.button("🚀 Run Technical Scan", type="primary", use_container_width=True
                 '<thead>'
                 '<tr>'
                 '<th>Serial No.</th>'
-                '<th>Stock Name</th>'
+                '<th>Stock Name (TradingView)</th>'
                 '<th>Current Price</th>'
                 '<th>Daily RSI</th>'
                 '<th>Weekly RSI</th>'
@@ -411,6 +431,6 @@ if st.button("🚀 Run Technical Scan", type="primary", use_container_width=True
 
             st.markdown(table_html, unsafe_allow_html=True)
             st.write("")
-            st.success(f"✅ Successfully scanned {len(results)} stock(s).")
+            st.success(f"✅ Successfully scanned {len(results)} stock(s). Click any stock name to launch TradingView Daily chart.")
         else:
             st.error("No stock data could be retrieved. Check ticker symbols.")
