@@ -31,7 +31,7 @@ if "stocks" not in st.session_state:
     ]
 
 if "selected_theme" not in st.session_state:
-    st.session_state.selected_theme = "Navy Blue Honeycomb"
+    st.session_state.selected_theme = "Golden Honeycomb"
 
 # Callback for adding stocks
 def add_stock_callback():
@@ -46,6 +46,30 @@ def add_stock_callback():
 # CSS Theme Engines with Background Patterns
 # ---------------------------------------------------------
 THEME_CSS = {
+    "Golden Honeycomb": """
+    <style>
+        .stApp {
+            background-color: #2D2103;
+            background-image: radial-gradient(#F59E0B 0.8px, transparent 0.8px), radial-gradient(#F59E0B 0.8px, #2D2103 0.8px);
+            background-size: 26px 26px;
+            background-position: 0 0, 13px 13px;
+            color: #FEF3C7;
+        }
+        .styled-table {
+            background-color: #3D2D05 !important;
+            border: 2px solid #F59E0B !important;
+            color: #FEF3C7 !important;
+        }
+        .styled-table th {
+            background-color: #523E07 !important;
+            color: #FDE047 !important;
+            border-bottom: 2px solid #F59E0B !important;
+        }
+        .styled-table td { border-bottom: 1px solid #523E07 !important; }
+        .styled-table tr:hover { background-color: #664E09 !important; }
+        .text-primary-header { color: #FDE047 !important; }
+    </style>
+    """,
     "Navy Blue Honeycomb": """
     <style>
         .stApp {
@@ -116,30 +140,6 @@ THEME_CSS = {
         .styled-table td { border-bottom: 1px solid #E2E8F0 !important; color: #0F172A !important; }
         .styled-table tr:hover { background-color: #F1F5F9 !important; }
         .text-primary-header { color: #1E3A8A !important; }
-    </style>
-    """,
-    "Golden Honeycomb": """
-    <style>
-        .stApp {
-            background-color: #2D2103;
-            background-image: radial-gradient(#F59E0B 0.8px, transparent 0.8px), radial-gradient(#F59E0B 0.8px, #2D2103 0.8px);
-            background-size: 26px 26px;
-            background-position: 0 0, 13px 13px;
-            color: #FEF3C7;
-        }
-        .styled-table {
-            background-color: #3D2D05 !important;
-            border: 2px solid #F59E0B !important;
-            color: #FEF3C7 !important;
-        }
-        .styled-table th {
-            background-color: #523E07 !important;
-            color: #FDE047 !important;
-            border-bottom: 2px solid #F59E0B !important;
-        }
-        .styled-table td { border-bottom: 1px solid #523E07 !important; }
-        .styled-table tr:hover { background-color: #664E09 !important; }
-        .text-primary-header { color: #FDE047 !important; }
     </style>
     """
 }
@@ -324,7 +324,8 @@ def fetch_stock_data(ticker_symbol):
         r_w = float(rsi_weekly_s.iloc[-1]) if len(rsi_weekly_s) > 0 else 0.0
         r_m = float(rsi_monthly_s.iloc[-1]) if len(rsi_monthly_s) > 0 else 0.0
 
-        sell_condition = (r_d < 50) or (curr_price < e20)
+        # UPDATED SELL CONDITION: Requires BOTH Price < EMA 20 AND Daily RSI < 50
+        sell_condition = (curr_price < e20) and (r_d < 50)
         signal = "🔴 SELL" if sell_condition else "🟢 HOLD"
 
         return {
