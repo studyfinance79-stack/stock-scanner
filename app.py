@@ -1,74 +1,273 @@
+import streamlit as st
+import yfinance as yf
 import pandas as pd
 import numpy as np
-import yfinance as yf
 
+# 1. MUST BE THE FIRST STREAMLIT COMMAND
+st.set_page_config(
+    page_title="HD Technical Stock Scanner",
+    layout="wide",
+    page_icon="📈",
+    initial_sidebar_state="collapsed"
+)
+
+# Hide Streamlit UI elements
+st.markdown("""
+<style>
+    [data-testid="collapsedControl"] { display: none; }
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+</style>
+""", unsafe_allow_html=True)
+
+# 2. Session State Initialization
+if "stocks" not in st.session_state:
+    st.session_state.stocks = [
+        "AEROFLEX", "BLSE", "DATAPATTNS", "IPCALAB",
+        "KANORICHEM", "MODTHREAD", "NETWEB", "PREMIERPOL", "SONACOMS"
+    ]
+
+if "selected_theme" not in st.session_state:
+    st.session_state.selected_theme = "Golden Honeycomb"
+
+def add_stock_callback():
+    val = st.session_state.new_stock_input.strip().upper()
+    if val:
+        clean_val = val.replace(".NS", "").replace(".BO", "")
+        if clean_val not in st.session_state.stocks:
+            st.session_state.stocks.append(clean_val)
+        st.session_state.new_stock_input = ""
+
+# 3. CSS Theme Engine
+THEME_CSS = {
+    "Golden Honeycomb": """
+    <style>
+        .stApp {
+            background-color: #2D2103;
+            background-image: radial-gradient(#F59E0B 0.8px, transparent 0.8px), radial-gradient(#F59E0B 0.8px, #2D2103 0.8px);
+            background-size: 26px 26px;
+            background-position: 0 0, 13px 13px;
+            color: #FEF3C7;
+        }
+        .styled-table {
+            background-color: #3D2D05 !important;
+            border: 2px solid #F59E0B !important;
+            color: #FEF3C7 !important;
+        }
+        .styled-table th {
+            background-color: #523E07 !important;
+            color: #FDE047 !important;
+            border-bottom: 2px solid #F59E0B !important;
+        }
+        .styled-table td { border-bottom: 1px solid #523E07 !important; }
+        .styled-table tr:hover { background-color: #664E09 !important; }
+        .text-primary-header { color: #FDE047 !important; }
+        .stock-link { color: #FDE047 !important; text-decoration: none; font-weight: bold; }
+        .stock-link:hover { color: #38BDF8 !important; text-decoration: underline !important; }
+    </style>
+    """,
+    "Navy Blue Honeycomb": """
+    <style>
+        .stApp {
+            background-color: #080D1A;
+            background-image: radial-gradient(#1E3A8A 0.75px, transparent 0.75px), radial-gradient(#1E3A8A 0.75px, #080D1A 0.75px);
+            background-size: 30px 30px;
+            background-position: 0 0, 15px 15px;
+            color: #F0F9FF;
+        }
+        .styled-table {
+            background-color: #0F172A !important;
+            border: 2px solid #1E3A8A !important;
+            color: #F0F9FF !important;
+        }
+        .styled-table th {
+            background-color: #1E293B !important;
+            color: #38BDF8 !important;
+            border-bottom: 2px solid #1E3A8A !important;
+        }
+        .styled-table td { border-bottom: 1px solid #1E293B !important; }
+        .styled-table tr:hover { background-color: #1E293B !important; }
+        .text-primary-header { color: #38BDF8 !important; }
+        .stock-link { color: #38BDF8 !important; text-decoration: none; font-weight: bold; }
+        .stock-link:hover { color: #FACC15 !important; text-decoration: underline !important; }
+    </style>
+    """,
+    "Dark Bottle Green (Ficus Motif)": """
+    <style>
+        .stApp {
+            background-color: #041E15;
+            background-image: radial-gradient(#D4AF37 0.8px, transparent 0.8px), radial-gradient(#D4AF37 0.8px, #041E15 0.8px);
+            background-size: 28px 28px;
+            background-position: 0 0, 14px 14px;
+            color: #DCFCE7;
+        }
+        .styled-table {
+            background-color: #0B2E21 !important;
+            border: 2px solid #D4AF37 !important;
+            color: #DCFCE7 !important;
+        }
+        .styled-table th {
+            background-color: #113E2E !important;
+            color: #FACC15 !important;
+            border-bottom: 2px solid #D4AF37 !important;
+        }
+        .styled-table td { border-bottom: 1px solid #113E2E !important; }
+        .styled-table tr:hover { background-color: #164E3A !important; }
+        .text-primary-header { color: #FACC15 !important; }
+        .stock-link { color: #FACC15 !important; text-decoration: none; font-weight: bold; }
+        .stock-link:hover { color: #38BDF8 !important; text-decoration: underline !important; }
+    </style>
+    """,
+    "Metallic Silver Rhombus": """
+    <style>
+        .stApp {
+            background-color: #E5E7EB;
+            background-image: linear-gradient(135deg, #CBD5E1 25%, transparent 25%), linear-gradient(225deg, #CBD5E1 25%, transparent 25%), linear-gradient(45deg, #CBD5E1 25%, transparent 25%), linear-gradient(315deg, #CBD5E1 25%, #E5E7EB 25%);
+            background-position: 18px 0, 18px 0, 0 0, 0 0;
+            background-size: 36px 36px;
+            color: #0F172A;
+        }
+        .styled-table {
+            background-color: #FFFFFF !important;
+            border: 2px solid #64748B !important;
+            color: #0F172A !important;
+        }
+        .styled-table th {
+            background-color: #334155 !important;
+            color: #38BDF8 !important;
+            border-bottom: 2px solid #64748B !important;
+        }
+        .styled-table td { border-bottom: 1px solid #E2E8F0 !important; color: #0F172A !important; }
+        .styled-table tr:hover { background-color: #F1F5F9 !important; }
+        .text-primary-header { color: #1E3A8A !important; }
+        .stock-link { color: #0284C7 !important; text-decoration: none; font-weight: bold; }
+        .stock-link:hover { color: #0369A1 !important; text-decoration: underline !important; }
+    </style>
+    """
+}
+
+# Core Global Styling
+st.markdown("""
+<style>
+    .block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
+    .main-title { text-align: center; font-size: 2.3rem; font-weight: 800; margin-bottom: 0.2rem; }
+    .sub-title { text-align: center; font-size: 1rem; opacity: 0.85; margin-bottom: 1.5rem; }
+    .custom-table-container { width: 100%; overflow-x: auto; margin-top: 1rem; border-radius: 8px; }
+    .styled-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+    .styled-table th { padding: 12px 10px; text-align: center !important; font-weight: 700; }
+    .styled-table td { padding: 10px 8px; text-align: center !important; vertical-align: middle; }
+    .led-yes { background-color: rgba(34, 197, 94, 0.2); color: #22C55E; border: 1px solid #22C55E; padding: 3px 8px; border-radius: 10px; font-weight: 700; }
+    .led-no { background-color: rgba(239, 68, 68, 0.2); color: #EF4444; border: 1px solid #EF4444; padding: 3px 8px; border-radius: 10px; font-weight: 700; }
+    .badge-hold { background-color: rgba(34, 197, 94, 0.25); color: #22C55E; border: 1px solid #22C55E; padding: 4px 12px; border-radius: 15px; font-weight: 800; }
+    .badge-sell { background-color: rgba(239, 68, 68, 0.25); color: #EF4444; border: 1px solid #EF4444; padding: 4px 12px; border-radius: 15px; font-weight: 800; }
+</style>
+""", unsafe_allow_html=True)
+
+# Top Bar
+st.markdown("<div class='main-title text-primary-header'>⚡ PRO TECHNICAL STOCK SCANNER</div>", unsafe_allow_html=True)
+st.markdown("<div class='sub-title'>HD Multi-Timeframe RSI & Moving Average LED Analytics</div>", unsafe_allow_html=True)
+
+col1, col2 = st.columns([2, 1])
+with col1:
+    st.session_state.selected_theme = st.selectbox(
+        "🎨 Select UI Theme Presentation:",
+        options=list(THEME_CSS.keys()),
+        index=list(THEME_CSS.keys()).index(st.session_state.selected_theme)
+    )
+
+st.markdown(THEME_CSS[st.session_state.selected_theme], unsafe_allow_html=True)
+
+with col2:
+    st.text_input(
+        "➕ Add Stock Symbol:",
+        key="new_stock_input",
+        placeholder="e.g. TATAMOTORS, RELIANCE",
+        on_change=add_stock_callback
+    )
+
+st.markdown("---")
+
+# Stock Management Expander
+if st.session_state.stocks:
+    with st.expander("📌 Stock List & Removal Manager", expanded=False):
+        to_delete = []
+        cols = st.columns(6)
+        for idx, symbol in enumerate(st.session_state.stocks):
+            if cols[idx % 6].checkbox(f"❌ {symbol}", key=f"del_{symbol}"):
+                to_delete.append(symbol)
+        
+        if to_delete and st.button("🗑️ Delete Selected"):
+            st.session_state.stocks = [s for s in st.session_state.stocks if s not in to_delete]
+            st.rerun()
+
+# 4. Safe Pine Script RMA/RSI Calculation
 def calculate_tv_rsi(series, period=14):
-    """
-    Pine Script ta.rma / ta.rsi implementation with extended warm-up support.
-    """
-    if len(series) < period + 1:
+    try:
+        series = series.dropna()
+        if len(series) <= period + 1:
+            return pd.Series(50.0, index=series.index)
+
+        delta = series.diff()
+        gain = np.where(delta > 0, delta, 0.0)
+        loss = np.where(delta < 0, -delta, 0.0)
+
+        rma_gain = np.zeros(len(series))
+        rma_loss = np.zeros(len(series))
+
+        # Initial SMA Seed matching TradingView
+        rma_gain[period] = np.mean(gain[1:period + 1])
+        rma_loss[period] = np.mean(loss[1:period + 1])
+
+        alpha = 1.0 / period
+        for i in range(period + 1, len(series)):
+            rma_gain[i] = alpha * gain[i] + (1.0 - alpha) * rma_gain[i - 1]
+            rma_loss[i] = alpha * loss[i] + (1.0 - alpha) * rma_loss[i - 1]
+
+        with np.errstate(divide='ignore', invalid='ignore'):
+            rs = np.divide(rma_gain, rma_loss, out=np.zeros_like(rma_gain), where=rma_loss != 0)
+            rsi = 100.0 - (100.0 / (1.0 + rs))
+            rsi[rma_loss == 0] = 100.0
+            rsi[rma_gain == 0] = 0.0
+
+        return pd.Series(rsi, index=series.index)
+    except Exception:
         return pd.Series(50.0, index=series.index)
 
-    delta = series.diff()
-    gain = np.where(delta > 0, delta, 0.0)
-    loss = np.where(delta < 0, -delta, 0.0)
-
-    rma_gain = np.zeros(len(series))
-    rma_loss = np.zeros(len(series))
-
-    # Seed initial value with Simple Moving Average (SMA) matching TradingView
-    rma_gain[period] = np.mean(gain[1:period + 1])
-    rma_loss[period] = np.mean(loss[1:period + 1])
-
-    alpha = 1.0 / period
-    for i in range(period + 1, len(series)):
-        rma_gain[i] = alpha * gain[i] + (1.0 - alpha) * rma_gain[i - 1]
-        rma_loss[i] = alpha * loss[i] + (1.0 - alpha) * rma_loss[i - 1]
-
-    with np.errstate(divide='ignore', invalid='ignore'):
-        rs = np.divide(rma_gain, rma_loss, out=np.zeros_like(rma_gain), where=rma_loss != 0)
-        rsi = 100.0 - (100.0 / (1.0 + rs))
-        rsi[rma_loss == 0] = 100.0
-        rsi[rma_gain == 0] = 0.0
-
-    return pd.Series(rsi, index=series.index)
-
-
+# 5. Safe Stock Data Fetcher
 def fetch_stock_data(ticker_symbol):
     ticker = ticker_symbol if ("." in ticker_symbol) else f"{ticker_symbol}.NS"
     try:
-        # Fetch 15 years of data to ensure Monthly & Weekly RMA fully converges
-        df_daily = yf.download(ticker, period="15y", interval="1d", auto_adjust=False, progress=False)
-        if df_daily.empty or len(df_daily) < 50:
+        # Fetch 5 Years for maximum array convergence without timing out
+        df_daily = yf.download(ticker, period="5y", interval="1d", progress=False)
+        if df_daily is None or df_daily.empty or len(df_daily) < 30:
             return None
 
         if isinstance(df_daily.columns, pd.MultiIndex):
             df_daily = df_daily.xs(ticker, axis=1, level=1)
 
         close_daily = df_daily['Close'].dropna()
+        if len(close_daily) < 30:
+            return None
 
-        # 1. Daily RSI
-        rsi_daily_s = calculate_tv_rsi(close_daily, 14)
-
-        # 2. Weekly RSI (Resampled to Friday close, including active current week)
-        close_weekly = close_daily.resample('W-FRI').last().dropna()
-        rsi_weekly_s = calculate_tv_rsi(close_weekly, 14)
-
-        # 3. Monthly RSI (Resampled to Month-End, including active current month)
-        close_monthly = close_daily.resample('ME').last().dropna()
-        rsi_monthly_s = calculate_tv_rsi(close_monthly, 14)
-
-        curr_price = float(close_daily.iloc[-1])
-        
-        # Moving averages calculated on daily close
+        # Exponential Moving Averages
         e20 = float(close_daily.ewm(span=20, adjust=False).mean().iloc[-1])
         e50 = float(close_daily.ewm(span=50, adjust=False).mean().iloc[-1])
         e100 = float(close_daily.ewm(span=100, adjust=False).mean().iloc[-1])
         e200 = float(close_daily.ewm(span=200, adjust=False).mean().iloc[-1])
 
+        # RSI Calculations
+        rsi_daily_s = calculate_tv_rsi(close_daily, 14)
+
+        close_weekly = close_daily.resample('W-FRI').last().dropna()
+        rsi_weekly_s = calculate_tv_rsi(close_weekly, 14)
+
+        close_monthly = close_daily.resample('ME').last().dropna()
+        rsi_monthly_s = calculate_tv_rsi(close_monthly, 14)
+
+        curr_price = float(close_daily.iloc[-1])
         r_d = float(rsi_daily_s.iloc[-1])
-        r_w = float(rsi_weekly_s.iloc[-1])
-        r_m = float(rsi_monthly_s.iloc[-1])
+        r_w = float(rsi_weekly_s.iloc[-1]) if len(rsi_weekly_s) > 0 else 50.0
+        r_m = float(rsi_monthly_s.iloc[-1]) if len(rsi_monthly_s) > 0 else 50.0
 
         sell_condition = (curr_price < e20) and (r_d < 50)
         signal = "🔴 SELL" if sell_condition else "🟢 HOLD"
@@ -87,3 +286,71 @@ def fetch_stock_data(ticker_symbol):
         }
     except Exception:
         return None
+
+# 6. Render Trigger
+if st.button("🚀 Run Technical Scan", type="primary", use_container_width=True):
+    if not st.session_state.stocks:
+        st.warning("⚠️ Tracked stock list is empty. Add stock symbols above.")
+    else:
+        with st.spinner("Fetching live market technicals..."):
+            results = []
+            for symbol in st.session_state.stocks:
+                data = fetch_stock_data(symbol)
+                if data:
+                    results.append(data)
+
+        if results:
+            table_rows = []
+            for idx, row in enumerate(results, start=1):
+                badge_cls = "badge-sell" if "SELL" in row["Signal"] else "badge-hold"
+                stock_name = row['Stock Name']
+                tv_url = f"https://www.tradingview.com/chart/?symbol=NSE:{stock_name}&interval=D"
+                stock_link = f"<a href='{tv_url}' target='_blank' class='stock-link'>📈 {stock_name} ↗</a>"
+
+                led_20 = '<span class="led-yes">🟢 YES</span>' if row["EMA20_Check"] else '<span class="led-no">🔴 NO</span>'
+                led_50 = '<span class="led-yes">🟢 YES</span>' if row["EMA50_Check"] else '<span class="led-no">🔴 NO</span>'
+                led_100 = '<span class="led-yes">🟢 YES</span>' if row["EMA100_Check"] else '<span class="led-no">🔴 NO</span>'
+                led_200 = '<span class="led-yes">🟢 YES</span>' if row["EMA200_Check"] else '<span class="led-no">🔴 NO</span>'
+
+                table_rows.append(
+                    f"<tr>"
+                    f"<td><strong>{idx}</strong></td>"
+                    f"<td>{stock_link}</td>"
+                    f"<td><strong>{row['Current Price']}</strong></td>"
+                    f"<td>{row['Daily RSI']}</td>"
+                    f"<td>{row['Weekly RSI']}</td>"
+                    f"<td>{row['Monthly RSI']}</td>"
+                    f"<td>{led_20}</td>"
+                    f"<td>{led_50}</td>"
+                    f"<td>{led_100}</td>"
+                    f"<td>{led_200}</td>"
+                    f"<td><span class='{badge_cls}'>{row['Signal']}</span></td>"
+                    f"</tr>"
+                )
+
+            table_html = f"""
+            <div class="custom-table-container">
+                <table class="styled-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Stock Name</th>
+                            <th>Price</th>
+                            <th>Daily RSI</th>
+                            <th>Weekly RSI</th>
+                            <th>Monthly RSI</th>
+                            <th>> EMA 20</th>
+                            <th>> EMA 50</th>
+                            <th>> EMA 100</th>
+                            <th>> EMA 200</th>
+                            <th>Signal</th>
+                        </tr>
+                    </thead>
+                    <tbody>{''.join(table_rows)}</tbody>
+                </table>
+            </div>
+            """
+            st.markdown(table_html, unsafe_allow_html=True)
+            st.success(f"✅ Successfully scanned {len(results)} stock(s).")
+        else:
+            st.error("Could not fetch data for the provided ticker symbols.")
