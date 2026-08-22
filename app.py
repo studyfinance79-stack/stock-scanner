@@ -84,9 +84,8 @@ def sync_stocks_to_github(updated_stock_list):
 current_stocks = load_stocks()
 
 # ==========================================
-# 3. DYNAMIC THEME & TEXTURE ENGINE
+# 3. DYNAMIC ULTRA-HD THEME ENGINE
 # ==========================================
-# SVG Texture Patterns encoded in base64
 DIAMOND_SVG = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTEwIDAgTDIwIDEwIEwxMCAyMCBMMCAxMCBaIiBmaWxsPSJub25lIiBzdHJva2U9InJnYmEoMjU1LDI1NSwyNTUsMC4wOCkiIHN0cm9rZS13aWR0aD0iMSIvPjwvc3ZnPg=="
 HONEYCOMB_SVG = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iNDEuNTciIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTEyIDBMMjQgNi45M1YyMC43OEwxMiAyNy43MUwwIDIwLjc4VjYuOTNMMTIgMFpNMTIgNDEuNTdMMjQgMzQuNjRWMjAuNzhMMTIgMjcuNzFMMCAyMC43OFYzNC42NEwxMiA0MS41N1oiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjA2KSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9zdmc+"
 RHOMBUS_SVG = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAiIGhlaWdodD0iMzAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTAgMTUgTDE1IDAgTDMwIDE1IEwxNSAzMCBaIiBmaWxsPSJub25lIiBzdHJva2U9InJnYmEoMjU1LDI1NSwyNTUsMC4wNykiIHN0cm9rZS13aWR0aD0iMSIvPjwvc3ZnPg=="
@@ -100,7 +99,6 @@ THEMES = {
         "grid": "#1e3a8a",
         "th_bg": "#1e293b",
         "texture": DIAMOND_SVG,
-        "is_dark": True,
     },
     "Dark Bottle Green (Emerald Texture)": {
         "bg": "#031e16",
@@ -110,7 +108,6 @@ THEMES = {
         "grid": "#059669",
         "th_bg": "#064e3b",
         "texture": HONEYCOMB_SVG,
-        "is_dark": True,
     },
     "Dark Grey Obsidian (Rhombus Grid)": {
         "bg": "#121316",
@@ -120,9 +117,8 @@ THEMES = {
         "grid": "#374151",
         "th_bg": "#282c34",
         "texture": RHOMBUS_SVG,
-        "is_dark": True,
     },
-    "24K Metallic Gold (Dark Contrast Text)": {
+    "24K Metallic Gold (Contrast Dark)": {
         "bg": "#d4af37",
         "card": "#fef3c7",
         "text": "#1e1b4b",
@@ -130,7 +126,6 @@ THEMES = {
         "grid": "#b45309",
         "th_bg": "#fde68a",
         "texture": DIAMOND_SVG,
-        "is_dark": False,
     },
     "Metallic Silver (High Contrast)": {
         "bg": "#cbd5e1",
@@ -140,7 +135,6 @@ THEMES = {
         "grid": "#64748b",
         "th_bg": "#e2e8f0",
         "texture": RHOMBUS_SVG,
-        "is_dark": False,
     },
     "Metallic Copper (Warm Texture)": {
         "bg": "#2a1810",
@@ -150,17 +144,6 @@ THEMES = {
         "grid": "#9a3412",
         "th_bg": "#573022",
         "texture": HONEYCOMB_SVG,
-        "is_dark": True,
-    },
-    "Camel Green Earth": {
-        "bg": "#1a2418",
-        "card": "#2b3a28",
-        "text": "#f7fee7",
-        "accent": "#a3e635",
-        "grid": "#4d7c0f",
-        "th_bg": "#364d30",
-        "texture": DIAMOND_SVG,
-        "is_dark": True,
     },
 }
 
@@ -168,7 +151,7 @@ col_theme, col_add = st.columns([1.2, 1])
 
 with col_theme:
   theme_choice = st.selectbox(
-      "🎨 Select HD Theme & Pattern Presentation:", list(THEMES.keys())
+      "🎨 Select Ultra-HD Theme Presentation:", list(THEMES.keys())
   )
 
 with col_add:
@@ -187,7 +170,7 @@ with col_add:
 
 active_theme = THEMES[theme_choice]
 
-# Inject Custom High-Contrast Styling with Visible Column/Row Grid Lines
+# Inject Ultra-HD CSS Stylesheet
 st.markdown(
     f"""
 <style>
@@ -221,7 +204,7 @@ st.markdown(
         margin-bottom: 20px; 
     }}
     
-    /* HIGH-CONTRAST THICK GRID TABLE STYLING */
+    /* ULTRA-HD STYLED TABLE WITH THICK CONTRAST LINES */
     .styled-table {{ 
         width: 100%; 
         border-collapse: collapse !important; 
@@ -231,28 +214,52 @@ st.markdown(
         border-radius: 8px;
         overflow: hidden;
         border: 3px solid {active_theme['grid']} !important;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+        box-shadow: 0 12px 35px rgba(0,0,0,0.65);
     }}
     .styled-table th {{ 
         background-color: {active_theme['th_bg']} !important; 
         color: {active_theme['accent']} !important; 
         text-align: center; 
-        padding: 13px 8px; 
+        padding: 12px 6px; 
         font-weight: 800; 
-        font-size: 0.82rem;
+        font-size: 0.80rem;
         text-transform: uppercase;
         letter-spacing: 0.5px;
         border: 2px solid {active_theme['grid']} !important; 
     }}
     .styled-table td {{ 
-        padding: 10px 6px; 
+        padding: 10px 4px; 
         text-align: center; 
-        font-size: 0.86rem;
+        vertical-align: middle;
+        font-size: 0.85rem;
         font-weight: 600;
         border: 2px solid {active_theme['grid']} !important; 
     }}
+    
+    /* LEFT ALIGNMENT FOR STOCK NAME COLUMN */
+    .styled-table td:nth-child(2) {{
+        text-align: left !important;
+        padding-left: 14px !important;
+    }}
+    
     .styled-table tr:hover {{
         background-color: rgba(255, 255, 255, 0.08);
+    }}
+    
+    /* STACKED CELL FORMATTING */
+    .cell-stack {{
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        padding: 2px 0;
+    }}
+    .val-upper {{
+        font-weight: 800;
+        font-size: 0.88rem;
+        letter-spacing: 0.2px;
+        white-space: nowrap;
     }}
     
     /* GLOWING LED BADGES */
@@ -261,44 +268,48 @@ st.markdown(
         color: #10b981;
         border: 1.5px solid #10b981;
         box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
-        border-radius: 16px;
+        border-radius: 14px;
         padding: 2px 8px;
         font-weight: 800;
-        font-size: 0.78rem;
+        font-size: 0.72rem;
         display: inline-block;
+        white-space: nowrap;
     }}
     .led-red {{
         background: rgba(239, 68, 68, 0.2);
         color: #ef4444;
         border: 1.5px solid #ef4444;
         box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
-        border-radius: 16px;
+        border-radius: 14px;
         padding: 2px 8px;
         font-weight: 800;
-        font-size: 0.78rem;
+        font-size: 0.72rem;
         display: inline-block;
+        white-space: nowrap;
     }}
     .led-yellow {{
         background: rgba(245, 158, 11, 0.2);
         color: #f59e0b;
         border: 1.5px solid #f59e0b;
         box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
-        border-radius: 16px;
+        border-radius: 14px;
         padding: 2px 8px;
         font-weight: 800;
-        font-size: 0.78rem;
+        font-size: 0.72rem;
         display: inline-block;
+        white-space: nowrap;
     }}
     .led-purple {{
         background: rgba(168, 85, 247, 0.25);
         color: #c084fc;
         border: 1.5px solid #a855f7;
         box-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
-        border-radius: 16px;
+        border-radius: 14px;
         padding: 2px 8px;
         font-weight: 900;
-        font-size: 0.78rem;
+        font-size: 0.72rem;
         display: inline-block;
+        white-space: nowrap;
     }}
     
     .tv-link {{
@@ -309,12 +320,12 @@ st.markdown(
     .tv-link:hover {{
         text-decoration: underline;
     }}
-    .arrow-up {{ color: #10b981; font-weight: 900; }}
-    .arrow-down {{ color: #ef4444; font-weight: 900; }}
+    .arrow-up {{ color: #10b981; font-weight: 900; font-size: 0.92rem; }}
+    .arrow-down {{ color: #ef4444; font-weight: 900; font-size: 0.92rem; }}
 
     @media only screen and (max-width: 768px) {{
-        .styled-table th, .styled-table td {{ padding: 6px 3px !important; font-size: 0.70rem !important; }}
-        .main-title {{ font-size: 1.5rem !important; }}
+        .styled-table th, .styled-table td {{ padding: 6px 2px !important; font-size: 0.68rem !important; }}
+        .main-title {{ font-size: 1.4rem !important; }}
     }}
 </style>
 """,
@@ -327,8 +338,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 st.markdown(
-    '<div class="sub-title">Multi-Timeframe RSI, Supertrend, ADX, Volume'
-    " Spikes & AI Multi-Factor Signals</div>",
+    '<div class="sub-title">Multi-Timeframe RSI, Supertrend, ADX, TradingView'
+    " Exact Volume & AI Signals</div>",
     unsafe_allow_html=True,
 )
 
@@ -489,6 +500,7 @@ def calculate_adx(df, period=14):
   return val_str, adx, status_html
 
 
+# FETCH UNADJUSTED DATA TO MATCH TRADINGVIEW VOLUME EXACTLY
 @st.cache_data(ttl=300)
 def fetch_batch_data(tickers):
   try:
@@ -497,7 +509,7 @@ def fetch_batch_data(tickers):
         period="2y",
         interval="1d",
         group_by="ticker",
-        auto_adjust=True,
+        auto_adjust=False,  # Unadjusted Volume matching TradingView
         progress=False,
     )
     return df
@@ -523,7 +535,7 @@ def extract_stock_df(ticker, batch_df):
 
   try:
     stk = yf.Ticker(ticker)
-    hist = stk.history(period="2y", interval="1d")
+    hist = stk.history(period="2y", interval="1d", auto_adjust=False)
     if not hist.empty and "Close" in hist.columns:
       return hist.dropna(subset=["Close"])
   except Exception:
@@ -541,6 +553,17 @@ table_data = []
 batch_df = fetch_batch_data(current_stocks)
 total_stocks = len(current_stocks)
 
+
+# Helper function to generate Ultra-HD Stacked Cells
+def make_stacked_cell(val_upper_text, arrow_html, led_badge_html):
+  return f"""
+    <div class="cell-stack">
+        <div class="val-upper">{val_upper_text} {arrow_html}</div>
+        <div>{led_badge_html}</div>
+    </div>
+    """
+
+
 for i, ticker in enumerate(current_stocks):
   pct = int(((i + 1) / total_stocks) * 100)
   clean_name = ticker.replace(".NS", "").replace(".BO", "")
@@ -554,6 +577,21 @@ for i, ticker in enumerate(current_stocks):
     close_s = stock_df["Close"]
     vol_s = stock_df["Volume"]
     latest_price = float(close_s.iloc[-1])
+    prev_price = float(close_s.iloc[-2]) if len(close_s) > 1 else latest_price
+
+    price_arrow = (
+        '<span class="arrow-up">📈 ⬆</span>'
+        if latest_price >= prev_price
+        else '<span class="arrow-down">📉 ⬇</span>'
+    )
+    price_badge = (
+        '<span class="led-green">🟢 UP</span>'
+        if latest_price >= prev_price
+        else '<span class="led-red">🔴 DOWN</span>'
+    )
+    price_cell_html = make_stacked_cell(
+        f"₹{latest_price:,.2f}", price_arrow, price_badge
+    )
 
     # Moving Averages
     ema20 = float(
@@ -586,9 +624,9 @@ for i, ticker in enumerate(current_stocks):
         float(daily_rsi_s.iloc[-2]) if len(daily_rsi_s) > 1 else daily_rsi
     )
     d_arrow = (
-        '<span class="arrow-up">↑</span>'
+        '<span class="arrow-up">📈 ⬆</span>'
         if daily_rsi >= daily_rsi_prev
-        else '<span class="arrow-down">↓</span>'
+        else '<span class="arrow-down">📉 ⬇</span>'
     )
 
     df_weekly = close_s.groupby(close_s.index.to_period("W")).last().dropna()
@@ -600,9 +638,9 @@ for i, ticker in enumerate(current_stocks):
         float(weekly_rsi_s.iloc[-2]) if len(weekly_rsi_s) > 1 else weekly_rsi
     )
     w_arrow = (
-        '<span class="arrow-up">↑</span>'
+        '<span class="arrow-up">📈 ⬆</span>'
         if weekly_rsi >= weekly_rsi_prev
-        else '<span class="arrow-down">↓</span>'
+        else '<span class="arrow-down">📉 ⬇</span>'
     )
 
     df_monthly = close_s.groupby(close_s.index.to_period("M")).last().dropna()
@@ -616,24 +654,27 @@ for i, ticker in enumerate(current_stocks):
         else monthly_rsi
     )
     m_arrow = (
-        '<span class="arrow-up">↑</span>'
+        '<span class="arrow-up">📈 ⬆</span>'
         if monthly_rsi >= monthly_rsi_prev
-        else '<span class="arrow-down">↓</span>'
+        else '<span class="arrow-down">📉 ⬇</span>'
     )
 
-    # Format RSIs with LED Threshold Rules (Monthly & Weekly Red < 60, Daily Red < 52)
-    def fmt_rsi_led(val, threshold, arrow):
+    # Format RSI Stacked Cells with Threshold LED rules
+    def fmt_rsi_stacked(val, threshold, arrow):
       if np.isnan(val):
-        return "N/A"
+        return make_stacked_cell("N/A", "", '<span class="led-yellow">N/A</span>')
       val_round = round(val, 2)
-      cls = "led-green" if val >= threshold else "led-red"
-      return f'<span class="{cls}">{val_round} {arrow}</span>'
+      if val >= threshold:
+        badge = '<span class="led-green">🟢 BULLISH</span>'
+      else:
+        badge = '<span class="led-red">🔴 BEARISH</span>'
+      return make_stacked_cell(f"{val_round}", arrow, badge)
 
-    daily_rsi_formatted = fmt_rsi_led(daily_rsi, 52, d_arrow)
-    weekly_rsi_formatted = fmt_rsi_led(weekly_rsi, 60, w_arrow)
-    monthly_rsi_formatted = fmt_rsi_led(monthly_rsi, 60, m_arrow)
+    daily_rsi_cell = fmt_rsi_stacked(daily_rsi, 52, d_arrow)
+    weekly_rsi_cell = fmt_rsi_stacked(weekly_rsi, 60, w_arrow)
+    monthly_rsi_cell = fmt_rsi_stacked(monthly_rsi, 60, m_arrow)
 
-    # Volume Analytics (20-day Avg Vol, Volume Trend, Volume Spike)
+    # Volume Analytics
     curr_vol = float(vol_s.iloc[-1])
     prev_vol = float(vol_s.iloc[-2]) if len(vol_s) > 1 else curr_vol
     avg_vol20 = (
@@ -643,9 +684,9 @@ for i, ticker in enumerate(current_stocks):
     )
 
     v_arrow = (
-        '<span class="arrow-up">↑</span>'
+        '<span class="arrow-up">📈 ⬆</span>'
         if curr_vol >= prev_vol
-        else '<span class="arrow-down">↓</span>'
+        else '<span class="arrow-down">📉 ⬇</span>'
     )
 
     if curr_vol >= 1.5 * avg_vol20 and curr_vol > prev_vol:
@@ -667,56 +708,72 @@ for i, ticker in enumerate(current_stocks):
         return f"{num/1e3:.1f}k"
       return str(int(num))
 
-    vol_display = f"{human_format(curr_vol)} {v_arrow} {vol_status_html}"
+    vol_cell_html = make_stacked_cell(
+        human_format(curr_vol), v_arrow, vol_status_html
+    )
 
     # Supertrend & ADX (Daily)
     st_val_str, st_is_bullish, st_status_html = calculate_supertrend(stock_df)
+    st_cell_html = make_stacked_cell(st_val_str, "", st_status_html)
+
     adx_val_str, adx_val, adx_status_html = calculate_adx(stock_df)
+    adx_prev = (
+        float(calculate_adx(stock_df.iloc[:-1])[1])
+        if len(stock_df) > 30
+        else adx_val
+    )
+    adx_arrow = (
+        '<span class="arrow-up">📈 ⬆</span>'
+        if adx_val >= adx_prev
+        else '<span class="arrow-down">📉 ⬇</span>'
+    )
+    adx_cell_html = make_stacked_cell(adx_val_str, adx_arrow, adx_status_html)
 
     # ==========================================
     # COMBINED AI MULTI-FACTOR SIGNAL MATRIX
     # ==========================================
     ai_score = 0.0
 
-    # 1. Monthly RSI Priority (Weight 2.0)
     if not np.isnan(monthly_rsi) and monthly_rsi >= 60:
       ai_score += 2.0
-    # 2. Weekly RSI Priority (Weight 1.5)
     if not np.isnan(weekly_rsi) and weekly_rsi >= 60:
       ai_score += 1.5
-    # 3. Daily RSI Priority (Weight 1.0)
     if not np.isnan(daily_rsi) and daily_rsi >= 52:
       ai_score += 1.0
-    # 4. Supertrend Alignment (Weight 2.0)
     if st_is_bullish:
       ai_score += 2.0
-    # 5. ADX Strength (Weight 1.5)
     if adx_val >= 25:
       ai_score += 1.5
     elif adx_val >= 20:
       ai_score += 0.8
-    # 6. Volume Spike / Volume Confirmation (Weight 1.0)
     if vol_is_strong:
       ai_score += 1.0
 
-    # Synthesize AI Signal
     if ai_score >= 7.5:
-      ai_signal_html = '<span class="led-purple">🚀 STRONG BUY</span>'
+      ai_badge = '<span class="led-purple">🚀 STRONG BUY</span>'
     elif ai_score >= 5.5:
-      ai_signal_html = '<span class="led-green">🟢 BUY</span>'
+      ai_badge = '<span class="led-green">🟢 BUY</span>'
     elif ai_score >= 3.5:
-      ai_signal_html = '<span class="led-yellow">🟡 HOLD</span>'
+      ai_badge = '<span class="led-yellow">🟡 HOLD</span>'
     else:
-      ai_signal_html = '<span class="led-red">🔴 WEAK / AVOID</span>'
+      ai_badge = '<span class="led-red">🔴 WEAK / AVOID</span>'
 
-    def fmt_ema(val):
+    ai_cell_html = make_stacked_cell(f"{ai_score:.1f} / 9.0", "", ai_badge)
+
+    def fmt_ema_cell(val):
       if np.isnan(val):
-        return '<span class="led-yellow">N/A</span>'
-      return (
-          '<span class="led-green">🟢 YES</span>'
-          if latest_price > val
-          else '<span class="led-red">🔴 NO</span>'
-      )
+        return make_stacked_cell(
+            "N/A", "", '<span class="led-yellow">N/A</span>'
+        )
+      val_str = f"₹{val:,.1f}"
+      if latest_price > val:
+        return make_stacked_cell(
+            val_str, "", '<span class="led-green">🟢 YES</span>'
+        )
+      else:
+        return make_stacked_cell(
+            val_str, "", '<span class="led-red">🔴 NO</span>'
+        )
 
     # TradingView Link
     tv_url = f"https://in.tradingview.com/chart/?symbol=NSE:{clean_name}"
@@ -725,18 +782,18 @@ for i, ticker in enumerate(current_stocks):
     table_data.append({
         "#": len(table_data) + 1,
         "Stock Name": tv_link_html,
-        "Price": f"₹{latest_price:,.2f}",
-        "AI Signal": ai_signal_html,
-        "Avg. Vol & Spike": vol_display,
-        "Supertrend (10,3)": f"{st_val_str} {st_status_html}",
-        "ADX (14)": f"{adx_val_str} {adx_status_html}",
-        "Daily RSI (≥52)": daily_rsi_formatted,
-        "Weekly RSI (≥60)": weekly_rsi_formatted,
-        "Monthly RSI (≥60)": monthly_rsi_formatted,
-        "> EMA 20": fmt_ema(ema20),
-        "> EMA 50": fmt_ema(ema50),
-        "> EMA 100": fmt_ema(ema100),
-        "> EMA 200": fmt_ema(ema200),
+        "Price": price_cell_html,
+        "AI Signal": ai_cell_html,
+        "Avg. Vol & Spike": vol_cell_html,
+        "Supertrend (10,3)": st_cell_html,
+        "ADX (14)": adx_cell_html,
+        "Daily RSI (≥52)": daily_rsi_cell,
+        "Weekly RSI (≥60)": weekly_rsi_cell,
+        "Monthly RSI (≥60)": monthly_rsi_cell,
+        "> EMA 20": fmt_ema_cell(ema20),
+        "> EMA 50": fmt_ema_cell(ema50),
+        "> EMA 100": fmt_ema_cell(ema100),
+        "> EMA 200": fmt_ema_cell(ema200),
     })
 
 progress_bar.empty()
