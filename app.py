@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 
-# 1. MUST BE THE FIRST STREAMLIT COMMAND
+# 1. PAGE CONFIGURATION (Must be the first Streamlit command)
 st.set_page_config(
     page_title="HD Technical Stock Scanner",
     layout="wide",
@@ -11,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Hide Streamlit UI elements
+# Hide default Streamlit UI elements
 st.markdown("""
 <style>
     [data-testid="collapsedControl"] { display: none; }
@@ -20,7 +20,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 2. Session State Initialization
+# 2. SESSION STATE INITIALIZATION
 if "stocks" not in st.session_state:
     st.session_state.stocks = [
         "AEROFLEX", "BLSE", "DATAPATTNS", "IPCALAB",
@@ -38,7 +38,7 @@ def add_stock_callback():
             st.session_state.stocks.append(clean_val)
         st.session_state.new_stock_input = ""
 
-# 3. CSS Theme Engine
+# 3. THEME CSS ENGINES & GREEN PROGRESS BAR STYLING
 THEME_CSS = {
     "Golden Honeycomb": """
     <style>
@@ -146,7 +146,7 @@ THEME_CSS = {
     """
 }
 
-# Core Global Styling
+# Global Table Layout & Custom Green Progress Bar Styling
 st.markdown("""
 <style>
     .block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
@@ -160,10 +160,15 @@ st.markdown("""
     .led-no { background-color: rgba(239, 68, 68, 0.2); color: #EF4444; border: 1px solid #EF4444; padding: 3px 8px; border-radius: 10px; font-weight: 700; }
     .badge-hold { background-color: rgba(34, 197, 94, 0.25); color: #22C55E; border: 1px solid #22C55E; padding: 4px 12px; border-radius: 15px; font-weight: 800; }
     .badge-sell { background-color: rgba(239, 68, 68, 0.25); color: #EF4444; border: 1px solid #EF4444; padding: 4px 12px; border-radius: 15px; font-weight: 800; }
+    
+    /* Force Streamlit Progress Bar to Bright Green */
+    div[data-testid="stProgress"] > div > div > div > div {
+        background-color: #22C55E !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Top Bar
+# 4. HEADER CONTROL BAR
 st.markdown("<div class='main-title text-primary-header'>⚡ PRO TECHNICAL STOCK SCANNER</div>", unsafe_allow_html=True)
 st.markdown("<div class='sub-title'>HD Multi-Timeframe RSI & Moving Average LED Analytics</div>", unsafe_allow_html=True)
 
@@ -179,7 +184,7 @@ st.markdown(THEME_CSS[st.session_state.selected_theme], unsafe_allow_html=True)
 
 with col2:
     st.text_input(
-        "➕ Add Stock Symbol:",
+        "➕ Add Stock Symbol (Auto-Refreshes):",
         key="new_stock_input",
         placeholder="e.g. TATAMOTORS, RELIANCE",
         on_change=add_stock_callback
@@ -187,7 +192,7 @@ with col2:
 
 st.markdown("---")
 
-# Stock Management Expander
+# Stock Removal Expander
 if st.session_state.stocks:
     with st.expander("📌 Stock List & Removal Manager", expanded=False):
         to_delete = []
@@ -196,11 +201,11 @@ if st.session_state.stocks:
             if cols[idx % 6].checkbox(f"❌ {symbol}", key=f"del_{symbol}"):
                 to_delete.append(symbol)
         
-        if to_delete and st.button("🗑️ Delete Selected"):
+        if to_delete and st.button("🗑️ Delete Selected Stocks"):
             st.session_state.stocks = [s for s in st.session_state.stocks if s not in to_delete]
             st.rerun()
 
-# 4. Safe Pine Script RMA/RSI Calculation
+# 5. TECHNICAL INDICATOR ENGINE
 def calculate_tv_rsi(series, period=14):
     try:
         series = series.dropna()
@@ -214,7 +219,7 @@ def calculate_tv_rsi(series, period=14):
         rma_gain = np.zeros(len(series))
         rma_loss = np.zeros(len(series))
 
-        # Initial SMA Seed matching TradingView
+        # Initial SMA Seed matching TradingView ta.rma
         rma_gain[period] = np.mean(gain[1:period + 1])
         rma_loss[period] = np.mean(loss[1:period + 1])
 
@@ -233,11 +238,10 @@ def calculate_tv_rsi(series, period=14):
     except Exception:
         return pd.Series(50.0, index=series.index)
 
-# 5. Safe Stock Data Fetcher
+
 def fetch_stock_data(ticker_symbol):
     ticker = ticker_symbol if ("." in ticker_symbol) else f"{ticker_symbol}.NS"
     try:
-        # Fetch 5 Years for maximum array convergence without timing out
         df_daily = yf.download(ticker, period="5y", interval="1d", progress=False)
         if df_daily is None or df_daily.empty or len(df_daily) < 30:
             return None
@@ -287,70 +291,79 @@ def fetch_stock_data(ticker_symbol):
     except Exception:
         return None
 
-# 6. Render Trigger
-if st.button("🚀 Run Technical Scan", type="primary", use_container_width=True):
-    if not st.session_state.stocks:
-        st.warning("⚠️ Tracked stock list is empty. Add stock symbols above.")
+# 6. AUTOMATIC DATA FETCHING WITH GREEN PROGRESS BAR
+if not st.session_state.stocks:
+    st.warning("⚠️ Stock list is empty. Add a symbol above.")
+else:
+    total_stocks = len(st.session_state.stocks)
+    progress_placeholder = st.empty()
+    progress_bar = progress_placeholder.progress(0, text="🚀 Initializing technical market scan...")
+    
+    results = []
+    for i, symbol in enumerate(st.session_state.stocks):
+        pct_complete = int(((i + 1) / total_stocks) * 100)
+        progress_bar.progress(
+            pct_complete,
+            text=f"🟢 Fetching live market technicals for {symbol} ({i + 1}/{total_stocks}) — {pct_complete}%"
+        )
+        data = fetch_stock_data(symbol)
+        if data:
+            results.append(data)
+
+    # Completed progress bar feedback
+    progress_bar.progress(100, text="✅ Technical scan completed 100%!")
+
+    if results:
+        table_rows = []
+        for idx, row in enumerate(results, start=1):
+            badge_cls = "badge-sell" if "SELL" in row["Signal"] else "badge-hold"
+            stock_name = row['Stock Name']
+            tv_url = f"https://www.tradingview.com/chart/?symbol=NSE:{stock_name}&interval=D"
+            stock_link = f"<a href='{tv_url}' target='_blank' class='stock-link'>📈 {stock_name} ↗</a>"
+
+            led_20 = '<span class="led-yes">🟢 YES</span>' if row["EMA20_Check"] else '<span class="led-no">🔴 NO</span>'
+            led_50 = '<span class="led-yes">🟢 YES</span>' if row["EMA50_Check"] else '<span class="led-no">🔴 NO</span>'
+            led_100 = '<span class="led-yes">🟢 YES</span>' if row["EMA100_Check"] else '<span class="led-no">🔴 NO</span>'
+            led_200 = '<span class="led-yes">🟢 YES</span>' if row["EMA200_Check"] else '<span class="led-no">🔴 NO</span>'
+
+            table_rows.append(
+                f"<tr>"
+                f"<td><strong>{idx}</strong></td>"
+                f"<td>{stock_link}</td>"
+                f"<td><strong>{row['Current Price']}</strong></td>"
+                f"<td>{row['Daily RSI']}</td>"
+                f"<td>{row['Weekly RSI']}</td>"
+                f"<td>{row['Monthly RSI']}</td>"
+                f"<td>{led_20}</td>"
+                f"<td>{led_50}</td>"
+                f"<td>{led_100}</td>"
+                f"<td>{led_200}</td>"
+                f"<td><span class='{badge_cls}'>{row['Signal']}</span></td>"
+                f"</tr>"
+            )
+
+        table_html = f"""
+        <div class="custom-table-container">
+            <table class="styled-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Stock Name</th>
+                        <th>Price</th>
+                        <th>Daily RSI</th>
+                        <th>Weekly RSI</th>
+                        <th>Monthly RSI</th>
+                        <th>> EMA 20</th>
+                        <th>> EMA 50</th>
+                        <th>> EMA 100</th>
+                        <th>> EMA 200</th>
+                        <th>Signal</th>
+                    </tr>
+                </thead>
+                <tbody>{''.join(table_rows)}</tbody>
+            </table>
+        </div>
+        """
+        st.markdown(table_html, unsafe_allow_html=True)
     else:
-        with st.spinner("Fetching live market technicals..."):
-            results = []
-            for symbol in st.session_state.stocks:
-                data = fetch_stock_data(symbol)
-                if data:
-                    results.append(data)
-
-        if results:
-            table_rows = []
-            for idx, row in enumerate(results, start=1):
-                badge_cls = "badge-sell" if "SELL" in row["Signal"] else "badge-hold"
-                stock_name = row['Stock Name']
-                tv_url = f"https://www.tradingview.com/chart/?symbol=NSE:{stock_name}&interval=D"
-                stock_link = f"<a href='{tv_url}' target='_blank' class='stock-link'>📈 {stock_name} ↗</a>"
-
-                led_20 = '<span class="led-yes">🟢 YES</span>' if row["EMA20_Check"] else '<span class="led-no">🔴 NO</span>'
-                led_50 = '<span class="led-yes">🟢 YES</span>' if row["EMA50_Check"] else '<span class="led-no">🔴 NO</span>'
-                led_100 = '<span class="led-yes">🟢 YES</span>' if row["EMA100_Check"] else '<span class="led-no">🔴 NO</span>'
-                led_200 = '<span class="led-yes">🟢 YES</span>' if row["EMA200_Check"] else '<span class="led-no">🔴 NO</span>'
-
-                table_rows.append(
-                    f"<tr>"
-                    f"<td><strong>{idx}</strong></td>"
-                    f"<td>{stock_link}</td>"
-                    f"<td><strong>{row['Current Price']}</strong></td>"
-                    f"<td>{row['Daily RSI']}</td>"
-                    f"<td>{row['Weekly RSI']}</td>"
-                    f"<td>{row['Monthly RSI']}</td>"
-                    f"<td>{led_20}</td>"
-                    f"<td>{led_50}</td>"
-                    f"<td>{led_100}</td>"
-                    f"<td>{led_200}</td>"
-                    f"<td><span class='{badge_cls}'>{row['Signal']}</span></td>"
-                    f"</tr>"
-                )
-
-            table_html = f"""
-            <div class="custom-table-container">
-                <table class="styled-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Stock Name</th>
-                            <th>Price</th>
-                            <th>Daily RSI</th>
-                            <th>Weekly RSI</th>
-                            <th>Monthly RSI</th>
-                            <th>> EMA 20</th>
-                            <th>> EMA 50</th>
-                            <th>> EMA 100</th>
-                            <th>> EMA 200</th>
-                            <th>Signal</th>
-                        </tr>
-                    </thead>
-                    <tbody>{''.join(table_rows)}</tbody>
-                </table>
-            </div>
-            """
-            st.markdown(table_html, unsafe_allow_html=True)
-            st.success(f"✅ Successfully scanned {len(results)} stock(s).")
-        else:
-            st.error("Could not fetch data for the provided ticker symbols.")
+        st.error("Could not fetch data for the provided ticker symbols.")
