@@ -208,11 +208,11 @@ def calculate_rsi(series, period=14):
 
 @st.cache_data(ttl=300)
 def fetch_batch_data(tickers):
-  """Downloads all stock data in one fast batch to prevent server rate blocks."""
+  """Downloads 2 years of stock data in one batch for complete RSI calculations."""
   try:
     df = yf.download(
         tickers=tickers,
-        period="1y",
+        period="2y",
         interval="1d",
         group_by="ticker",
         auto_adjust=True,
@@ -242,7 +242,7 @@ def extract_stock_series(ticker, batch_df):
 
   try:
     stk = yf.Ticker(ticker)
-    hist = stk.history(period="1y", interval="1d")
+    hist = stk.history(period="2y", interval="1d")
     if not hist.empty and "Close" in hist.columns:
       return hist["Close"].dropna()
   except Exception:
