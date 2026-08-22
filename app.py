@@ -1,369 +1,288 @@
+import base64
+import json
+import numpy as np
+import pandas as pd
+import requests
 import streamlit as st
 import yfinance as yf
-import pandas as pd
-import numpy as np
 
-# 1. PAGE CONFIGURATION (Must be the first Streamlit command)
+# ==========================================
+# PAGE CONFIGURATION
+# ==========================================
 st.set_page_config(
-    page_title="HD Technical Stock Scanner",
-    layout="wide",
-    page_icon="📈",
-    initial_sidebar_state="collapsed"
+    page_title="Pro Technical Stock Scanner", page_icon="⚡", layout="wide"
 )
 
-# Hide default Streamlit UI elements
-st.markdown("""
-<style>
-    [data-testid="collapsedControl"] { display: none; }
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-</style>
-""", unsafe_allow_html=True)
 
-# 2. SESSION STATE INITIALIZATION
-if "stocks" not in st.session_state:
-    st.session_state.stocks = [
-        "AEROFLEX", "BLSE", "DATAPATTNS", "IPCALAB",
-        "KANORICHEM", "MODTHREAD", "NETWEB", "PREMIERPOL", "SONACOMS"
-    ]
+# ==========================================
+# GITHUB API & STOCK LIST SYNC FUNCTIONS
+# ==========================================
+def load_stocks():
+  """Loads stock list from session state, stocks.json, or defaults."""
+  if "stocks" not in st.session_state:
+    try:
+      with open("stocks.json", "r") as f:
+        st.session_state.stocks = json.load(f)
+    except Exception:
+      st.session_state.stocks = [
+          "APARINDS.NS",
+          "AEROFLEX.NS",
+          "BLSE.NS",
+          "DATAPATTNS.NS",
+          "IPCALAB.NS",
+          "KANORICHEM.NS",
+          "MODTHREAD.NS",
+          "NETWEB.NS",
+          "PREMIERPOL.NS",
+          "SONACOMS.NS",
+      ]
+  return st.session_state.stocks
 
-if "selected_theme" not in st.session_state:
-    st.session_state.selected_theme = "Golden Honeycomb"
 
-def add_stock_callback():
-    val = st.session_state.new_stock_input.strip().upper()
-    if val:
-        clean_val = val.replace(".NS", "").replace(".BO", "")
-        if clean_val not in st.session_state.stocks:
-            st.session_state.stocks.append(clean_val)
-        st.session_state.new_stock_input = ""
+def sync_stocks_to_github(updated_stock_list):
+  """Pushes the updated stock list directly to stocks.json on GitHub."""
+  st.session_state.stocks = updated_stock_list
 
-# 3. THEME CSS ENGINES & GREEN PROGRESS BAR STYLING
-THEME_CSS = {
-    "Golden Honeycomb": """
-    <style>
-        .stApp {
-            background-color: #2D2103;
-            background-image: radial-gradient(#F59E0B 0.8px, transparent 0.8px), radial-gradient(#F59E0B 0.8px, #2D2103 0.8px);
-            background-size: 26px 26px;
-            background-position: 0 0, 13px 13px;
-            color: #FEF3C7;
-        }
-        .styled-table {
-            background-color: #3D2D05 !important;
-            border: 2px solid #F59E0B !important;
-            color: #FEF3C7 !important;
-        }
-        .styled-table th {
-            background-color: #523E07 !important;
-            color: #FDE047 !important;
-            border-bottom: 2px solid #F59E0B !important;
-        }
-        .styled-table td { border-bottom: 1px solid #523E07 !important; }
-        .styled-table tr:hover { background-color: #664E09 !important; }
-        .text-primary-header { color: #FDE047 !important; }
-        .stock-link { color: #FDE047 !important; text-decoration: none; font-weight: bold; }
-        .stock-link:hover { color: #38BDF8 !important; text-decoration: underline !important; }
-    </style>
-    """,
-    "Navy Blue Honeycomb": """
-    <style>
-        .stApp {
-            background-color: #080D1A;
-            background-image: radial-gradient(#1E3A8A 0.75px, transparent 0.75px), radial-gradient(#1E3A8A 0.75px, #080D1A 0.75px);
-            background-size: 30px 30px;
-            background-position: 0 0, 15px 15px;
-            color: #F0F9FF;
-        }
-        .styled-table {
-            background-color: #0F172A !important;
-            border: 2px solid #1E3A8A !important;
-            color: #F0F9FF !important;
-        }
-        .styled-table th {
-            background-color: #1E293B !important;
-            color: #38BDF8 !important;
-            border-bottom: 2px solid #1E3A8A !important;
-        }
-        .styled-table td { border-bottom: 1px solid #1E293B !important; }
-        .styled-table tr:hover { background-color: #1E293B !important; }
-        .text-primary-header { color: #38BDF8 !important; }
-        .stock-link { color: #38BDF8 !important; text-decoration: none; font-weight: bold; }
-        .stock-link:hover { color: #FACC15 !important; text-decoration: underline !important; }
-    </style>
-    """,
-    "Dark Bottle Green (Ficus Motif)": """
-    <style>
-        .stApp {
-            background-color: #041E15;
-            background-image: radial-gradient(#D4AF37 0.8px, transparent 0.8px), radial-gradient(#D4AF37 0.8px, #041E15 0.8px);
-            background-size: 28px 28px;
-            background-position: 0 0, 14px 14px;
-            color: #DCFCE7;
-        }
-        .styled-table {
-            background-color: #0B2E21 !important;
-            border: 2px solid #D4AF37 !important;
-            color: #DCFCE7 !important;
-        }
-        .styled-table th {
-            background-color: #113E2E !important;
-            color: #FACC15 !important;
-            border-bottom: 2px solid #D4AF37 !important;
-        }
-        .styled-table td { border-bottom: 1px solid #113E2E !important; }
-        .styled-table tr:hover { background-color: #164E3A !important; }
-        .text-primary-header { color: #FACC15 !important; }
-        .stock-link { color: #FACC15 !important; text-decoration: none; font-weight: bold; }
-        .stock-link:hover { color: #38BDF8 !important; text-decoration: underline !important; }
-    </style>
-    """,
-    "Metallic Silver Rhombus": """
-    <style>
-        .stApp {
-            background-color: #E5E7EB;
-            background-image: linear-gradient(135deg, #CBD5E1 25%, transparent 25%), linear-gradient(225deg, #CBD5E1 25%, transparent 25%), linear-gradient(45deg, #CBD5E1 25%, transparent 25%), linear-gradient(315deg, #CBD5E1 25%, #E5E7EB 25%);
-            background-position: 18px 0, 18px 0, 0 0, 0 0;
-            background-size: 36px 36px;
-            color: #0F172A;
-        }
-        .styled-table {
-            background-color: #FFFFFF !important;
-            border: 2px solid #64748B !important;
-            color: #0F172A !important;
-        }
-        .styled-table th {
-            background-color: #334155 !important;
-            color: #38BDF8 !important;
-            border-bottom: 2px solid #64748B !important;
-        }
-        .styled-table td { border-bottom: 1px solid #E2E8F0 !important; color: #0F172A !important; }
-        .styled-table tr:hover { background-color: #F1F5F9 !important; }
-        .text-primary-header { color: #1E3A8A !important; }
-        .stock-link { color: #0284C7 !important; text-decoration: none; font-weight: bold; }
-        .stock-link:hover { color: #0369A1 !important; text-decoration: underline !important; }
-    </style>
+  # Update local file if accessible
+  try:
+    with open("stocks.json", "w") as f:
+      json.dump(updated_stock_list, f, indent=2)
+  except Exception:
+    pass
+
+  # Fetch GitHub credentials from Streamlit Secrets
+  token = st.secrets.get("GITHUB_TOKEN")
+  repo = st.secrets.get("REPO_NAME", "studyfinance79-stack/stock-scanner")
+
+  if not token:
+    st.warning(
+        "⚠️ GITHUB_TOKEN not found in Streamlit Secrets. Stock list updated"
+        " locally for this session only."
+    )
+    return
+
+  url = f"https://api.github.com/repos/{repo}/contents/stocks.json"
+  headers = {
+      "Authorization": f"token {token}",
+      "Accept": "application/vnd.github.v3+json",
+  }
+
+  try:
+    # 1. Fetch current file SHA (required by GitHub API for updates)
+    res = requests.get(url, headers=headers)
+    sha = res.json().get("sha") if res.status_code == 200 else None
+
+    # 2. Encode JSON content
+    content_bytes = json.dumps(updated_stock_list, indent=2).encode("utf-8")
+    content_b64 = base64.b64encode(content_bytes).decode("utf-8")
+
+    # 3. Commit updated stocks.json to GitHub
+    payload = {
+        "message": "Update stocks.json via Streamlit Web UI",
+        "content": content_b64,
+    }
+    if sha:
+      payload["sha"] = sha
+
+    put_res = requests.put(url, headers=headers, json=payload)
+    if put_res.status_code in [200, 201]:
+      st.toast("Synced with GitHub! Telegram alerts updated.", icon="✅")
+    else:
+      st.error(
+          f"GitHub Sync Failed ({put_res.status_code}): {put_res.json().get('message')}"
+      )
+  except Exception as e:
+    st.error(f"Error syncing with GitHub: {e}")
+
+
+# Initialize current stocks
+current_stocks = load_stocks()
+
+
+# ==========================================
+# TECHNICAL ANALYSIS CALCULATIONS
+# ==========================================
+def calculate_rsi(series, period=14):
+  """Calculates Relative Strength Index (RSI)."""
+  delta = series.diff()
+  gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+  loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+  rs = gain / loss
+  return 100 - (100 / (1 + rs))
+
+
+@st.cache_data(ttl=300)
+def fetch_stock_metrics(ticker):
+  """Fetches price history and computes Multi-Timeframe RSI & EMAs."""
+  try:
+    df_daily = yf.download(
+        ticker, period="1y", interval="1d", progress=False, auto_adjust=True
+    )
+    if df_daily.empty or len(df_daily) < 50:
+      return None
+
+    # Clean multi-index columns if present
+    if isinstance(df_daily.columns, pd.MultiIndex):
+      df_daily.columns = df_daily.columns.get_level_values(0)
+
+    close_d = df_daily["Close"]
+    latest_price = float(close_d.iloc[-1])
+
+    # Daily EMAs
+    ema20 = float(close_d.ewm(span=20, adjust=False).mean().iloc[-1])
+    ema50 = float(close_d.ewm(span=50, adjust=False).mean().iloc[-1])
+    ema100 = float(close_d.ewm(span=100, adjust=False).mean().iloc[-1])
+    ema200 = float(close_d.ewm(span=200, adjust=False).mean().iloc[-1])
+
+    # Daily RSI
+    daily_rsi = float(calculate_rsi(close_d).iloc[-1])
+
+    # Weekly RSI
+    df_weekly = close_d.resample("W").last()
+    weekly_rsi = float(calculate_rsi(df_weekly).iloc[-1])
+
+    # Monthly RSI
+    df_monthly = close_d.resample("M").last()
+    monthly_rsi = float(calculate_rsi(df_monthly).iloc[-1])
+
+    # Signal Logic
+    if daily_rsi < 50 and latest_price < ema20:
+      signal = "🔴 SELL"
+    elif daily_rsi > 50 and latest_price > ema20:
+      signal = "🟢 HOLD"
+    else:
+      signal = "🟡 NEUTRAL"
+
+    return {
+        "Stock Name": ticker.replace(".NS", ""),
+        "Price": f"₹{latest_price:,.2f}",
+        "Daily RSI": round(daily_rsi, 2),
+        "Weekly RSI": round(weekly_rsi, 2),
+        "Monthly RSI": round(monthly_rsi, 2),
+        "> EMA 20": "🟢 YES" if latest_price > ema20 else "🔴 NO",
+        "> EMA 50": "🟢 YES" if latest_price > ema50 else "🔴 NO",
+        "> EMA 100": "🟢 YES" if latest_price > ema100 else "🔴 NO",
+        "> EMA 200": "🟢 YES" if latest_price > ema200 else "🔴 NO",
+        "Signal": signal,
+    }
+  except Exception:
+    return None
+
+
+# ==========================================
+# CUSTOM STYLING (GOLDEN HONEYCOMB THEME)
+# ==========================================
+st.markdown(
     """
-}
-
-# Global Table Layout & Custom Green Progress Bar Styling
-st.markdown("""
 <style>
-    .block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
-    .main-title { text-align: center; font-size: 2.3rem; font-weight: 800; margin-bottom: 0.2rem; }
-    .sub-title { text-align: center; font-size: 1rem; opacity: 0.85; margin-bottom: 1.5rem; }
-    .custom-table-container { width: 100%; overflow-x: auto; margin-top: 1rem; border-radius: 8px; }
-    .styled-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
-    .styled-table th { padding: 12px 10px; text-align: center !important; font-weight: 700; }
-    .styled-table td { padding: 10px 8px; text-align: center !important; vertical-align: middle; }
-    .led-yes { background-color: rgba(34, 197, 94, 0.2); color: #22C55E; border: 1px solid #22C55E; padding: 3px 8px; border-radius: 10px; font-weight: 700; }
-    .led-no { background-color: rgba(239, 68, 68, 0.2); color: #EF4444; border: 1px solid #EF4444; padding: 3px 8px; border-radius: 10px; font-weight: 700; }
-    .badge-hold { background-color: rgba(34, 197, 94, 0.25); color: #22C55E; border: 1px solid #22C55E; padding: 4px 12px; border-radius: 15px; font-weight: 800; }
-    .badge-sell { background-color: rgba(239, 68, 68, 0.25); color: #EF4444; border: 1px solid #EF4444; padding: 4px 12px; border-radius: 15px; font-weight: 800; }
-    
-    /* Force Streamlit Progress Bar to Bright Green */
-    div[data-testid="stProgress"] > div > div > div > div {
-        background-color: #22C55E !important;
+    .main { background-color: #0d0f12; }
+    .main-title { text-align: center; color: #ffb703; font-size: 2.2rem; font-weight: 800; margin-bottom: 0px; }
+    .sub-title { text-align: center; color: #a0a0a0; font-size: 0.95rem; margin-bottom: 25px; }
+    .styled-table { width: 100%; border-collapse: collapse; margin-top: 15px; color: #e0e0e0; font-family: sans-serif; }
+    .styled-table th { background-color: #1a1e24; color: #ffb703; text-align: center; padding: 10px; font-weight: bold; border-bottom: 2px solid #ffb703; }
+    .styled-table td { padding: 10px; text-align: center; border-bottom: 1px solid #22272e; }
+    @media only screen and (max-width: 600px) {
+        .styled-table th, .styled-table td { padding: 6px 3px !important; font-size: 0.75rem !important; }
+        .main-title { font-size: 1.5rem !important; }
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
-# 4. HEADER CONTROL BAR
-st.markdown("<div class='main-title text-primary-header'>⚡ PRO TECHNICAL STOCK SCANNER</div>", unsafe_allow_html=True)
-st.markdown("<div class='sub-title'>HD Multi-Timeframe RSI & Moving Average LED Analytics</div>", unsafe_allow_html=True)
+# Header
+st.markdown(
+    '<div class="main-title">⚡ PRO TECHNICAL STOCK SCANNER</div>',
+    unsafe_allow_html=True,
+)
+st.markdown(
+    '<div class="sub-title">HD Multi-Timeframe RSI & Moving Average LED'
+    " Analytics</div>",
+    unsafe_allow_html=True,
+)
 
-col1, col2 = st.columns([2, 1])
-with col1:
-    st.session_state.selected_theme = st.selectbox(
-        "🎨 Select UI Theme Presentation:",
-        options=list(THEME_CSS.keys()),
-        index=list(THEME_CSS.keys()).index(st.session_state.selected_theme)
-    )
+# ==========================================
+# CONTROLS & STOCK MANAGER
+# ==========================================
+col_theme, col_add = st.columns([1, 1])
 
-st.markdown(THEME_CSS[st.session_state.selected_theme], unsafe_allow_html=True)
+with col_theme:
+  theme = st.selectbox(
+      "🎨 Select UI Theme Presentation:", ["Golden Honeycomb", "Dark Slate"]
+  )
 
-with col2:
-    st.text_input(
-        "➕ Add Stock Symbol (Auto-Refreshes):",
-        key="new_stock_input",
-        placeholder="e.g. TATAMOTORS, RELIANCE",
-        on_change=add_stock_callback
-    )
+with col_add:
+  new_symbol = st.text_input(
+      "➕ Add Stock Symbol (Auto-Refreshes):",
+      placeholder="e.g. TATAMOTORS, RELIANCE",
+  )
+  if new_symbol:
+    clean_symbol = new_symbol.strip().upper()
+    if not clean_symbol.endswith(".NS") and not clean_symbol.endswith(".BO"):
+      clean_symbol += ".NS"
 
-st.markdown("---")
+    if clean_symbol not in current_stocks:
+      updated_list = current_stocks + [clean_symbol]
+      sync_stocks_to_github(updated_list)
+      st.rerun()
 
 # Stock Removal Expander
-if st.session_state.stocks:
-    with st.expander("📌 Stock List & Removal Manager", expanded=False):
-        to_delete = []
-        cols = st.columns(6)
-        for idx, symbol in enumerate(st.session_state.stocks):
-            if cols[idx % 6].checkbox(f"❌ {symbol}", key=f"del_{symbol}"):
-                to_delete.append(symbol)
-        
-        if to_delete and st.button("🗑️ Delete Selected Stocks"):
-            st.session_state.stocks = [s for s in st.session_state.stocks if s not in to_delete]
-            st.rerun()
+with st.expander("📌 Stock List & Removal Manager", expanded=True):
+  cols = st.columns(6)
+  stocks_to_remove = []
 
-# 5. TECHNICAL INDICATOR ENGINE
-def calculate_tv_rsi(series, period=14):
-    try:
-        series = series.dropna()
-        if len(series) <= period + 1:
-            return pd.Series(50.0, index=series.index)
+  for idx, symbol in enumerate(current_stocks):
+    col_idx = idx % 6
+    display_name = symbol.replace(".NS", "")
+    with cols[col_idx]:
+      if st.button(f"❌ {display_name}", key=f"del_{symbol}"):
+        stocks_to_remove.append(symbol)
 
-        delta = series.diff()
-        gain = np.where(delta > 0, delta, 0.0)
-        loss = np.where(delta < 0, -delta, 0.0)
+  if stocks_to_remove:
+    updated_list = [s for s in current_stocks if s not in stocks_to_remove]
+    sync_stocks_to_github(updated_list)
+    st.rerun()
 
-        rma_gain = np.zeros(len(series))
-        rma_loss = np.zeros(len(series))
+# ==========================================
+# SCAN EXECUTION & TABLE DISPLAY
+# ==========================================
+progress_bar = st.progress(0)
+st.info("Technical scan completed 100%!")
 
-        # Initial SMA Seed matching TradingView ta.rma
-        rma_gain[period] = np.mean(gain[1:period + 1])
-        rma_loss[period] = np.mean(loss[1:period + 1])
+table_data = []
+for i, ticker in enumerate(current_stocks):
+  data = fetch_stock_metrics(ticker)
+  if data:
+    data["#"] = len(table_data) + 1
+    table_data.append(data)
+  progress_bar.progress((i + 1) / len(current_stocks))
 
-        alpha = 1.0 / period
-        for i in range(period + 1, len(series)):
-            rma_gain[i] = alpha * gain[i] + (1.0 - alpha) * rma_gain[i - 1]
-            rma_loss[i] = alpha * loss[i] + (1.0 - alpha) * rma_loss[i - 1]
+progress_bar.empty()
 
-        with np.errstate(divide='ignore', invalid='ignore'):
-            rs = np.divide(rma_gain, rma_loss, out=np.zeros_like(rma_gain), where=rma_loss != 0)
-            rsi = 100.0 - (100.0 / (1.0 + rs))
-            rsi[rma_loss == 0] = 100.0
-            rsi[rma_gain == 0] = 0.0
+if table_data:
+  df_display = pd.DataFrame(table_data)
+  # Reorder columns
+  cols_order = [
+      "#",
+      "Stock Name",
+      "Price",
+      "Daily RSI",
+      "Weekly RSI",
+      "Monthly RSI",
+      "> EMA 20",
+      "> EMA 50",
+      "> EMA 100",
+      "> EMA 200",
+      "Signal",
+  ]
+  df_display = df_display[cols_order]
 
-        return pd.Series(rsi, index=series.index)
-    except Exception:
-        return pd.Series(50.0, index=series.index)
-
-
-def fetch_stock_data(ticker_symbol):
-    ticker = ticker_symbol if ("." in ticker_symbol) else f"{ticker_symbol}.NS"
-    try:
-        df_daily = yf.download(ticker, period="5y", interval="1d", progress=False)
-        if df_daily is None or df_daily.empty or len(df_daily) < 30:
-            return None
-
-        if isinstance(df_daily.columns, pd.MultiIndex):
-            df_daily = df_daily.xs(ticker, axis=1, level=1)
-
-        close_daily = df_daily['Close'].dropna()
-        if len(close_daily) < 30:
-            return None
-
-        # Exponential Moving Averages
-        e20 = float(close_daily.ewm(span=20, adjust=False).mean().iloc[-1])
-        e50 = float(close_daily.ewm(span=50, adjust=False).mean().iloc[-1])
-        e100 = float(close_daily.ewm(span=100, adjust=False).mean().iloc[-1])
-        e200 = float(close_daily.ewm(span=200, adjust=False).mean().iloc[-1])
-
-        # RSI Calculations
-        rsi_daily_s = calculate_tv_rsi(close_daily, 14)
-
-        close_weekly = close_daily.resample('W-FRI').last().dropna()
-        rsi_weekly_s = calculate_tv_rsi(close_weekly, 14)
-
-        close_monthly = close_daily.resample('ME').last().dropna()
-        rsi_monthly_s = calculate_tv_rsi(close_monthly, 14)
-
-        curr_price = float(close_daily.iloc[-1])
-        r_d = float(rsi_daily_s.iloc[-1])
-        r_w = float(rsi_weekly_s.iloc[-1]) if len(rsi_weekly_s) > 0 else 50.0
-        r_m = float(rsi_monthly_s.iloc[-1]) if len(rsi_monthly_s) > 0 else 50.0
-
-        sell_condition = (curr_price < e20) and (r_d < 50)
-        signal = "🔴 SELL" if sell_condition else "🟢 HOLD"
-
-        return {
-            "Stock Name": ticker_symbol.replace(".NS", "").replace(".BO", ""),
-            "Current Price": f"₹{curr_price:,.2f}",
-            "Daily RSI": round(r_d, 2),
-            "Weekly RSI": round(r_w, 2),
-            "Monthly RSI": round(r_m, 2),
-            "EMA20_Check": curr_price > e20,
-            "EMA50_Check": curr_price > e50,
-            "EMA100_Check": curr_price > e100,
-            "EMA200_Check": curr_price > e200,
-            "Signal": signal
-        }
-    except Exception:
-        return None
-
-# 6. AUTOMATIC DATA FETCHING WITH GREEN PROGRESS BAR
-if not st.session_state.stocks:
-    st.warning("⚠️ Stock list is empty. Add a symbol above.")
+  # Render HTML table with responsive mobile container
+  st.markdown(
+      '<div style="overflow-x:auto;">'
+      + df_display.to_html(index=False, classes="styled-table", escape=False)
+      + "</div>",
+      unsafe_allow_html=True,
+  )
 else:
-    total_stocks = len(st.session_state.stocks)
-    progress_placeholder = st.empty()
-    progress_bar = progress_placeholder.progress(0, text="🚀 Initializing technical market scan...")
-    
-    results = []
-    for i, symbol in enumerate(st.session_state.stocks):
-        pct_complete = int(((i + 1) / total_stocks) * 100)
-        progress_bar.progress(
-            pct_complete,
-            text=f"🟢 Fetching live market technicals for {symbol} ({i + 1}/{total_stocks}) — {pct_complete}%"
-        )
-        data = fetch_stock_data(symbol)
-        if data:
-            results.append(data)
-
-    # Completed progress bar feedback
-    progress_bar.progress(100, text="✅ Technical scan completed 100%!")
-
-    if results:
-        table_rows = []
-        for idx, row in enumerate(results, start=1):
-            badge_cls = "badge-sell" if "SELL" in row["Signal"] else "badge-hold"
-            stock_name = row['Stock Name']
-            tv_url = f"https://www.tradingview.com/chart/?symbol=NSE:{stock_name}&interval=D"
-            stock_link = f"<a href='{tv_url}' target='_blank' class='stock-link'>📈 {stock_name} ↗</a>"
-
-            led_20 = '<span class="led-yes">🟢 YES</span>' if row["EMA20_Check"] else '<span class="led-no">🔴 NO</span>'
-            led_50 = '<span class="led-yes">🟢 YES</span>' if row["EMA50_Check"] else '<span class="led-no">🔴 NO</span>'
-            led_100 = '<span class="led-yes">🟢 YES</span>' if row["EMA100_Check"] else '<span class="led-no">🔴 NO</span>'
-            led_200 = '<span class="led-yes">🟢 YES</span>' if row["EMA200_Check"] else '<span class="led-no">🔴 NO</span>'
-
-            table_rows.append(
-                f"<tr>"
-                f"<td><strong>{idx}</strong></td>"
-                f"<td>{stock_link}</td>"
-                f"<td><strong>{row['Current Price']}</strong></td>"
-                f"<td>{row['Daily RSI']}</td>"
-                f"<td>{row['Weekly RSI']}</td>"
-                f"<td>{row['Monthly RSI']}</td>"
-                f"<td>{led_20}</td>"
-                f"<td>{led_50}</td>"
-                f"<td>{led_100}</td>"
-                f"<td>{led_200}</td>"
-                f"<td><span class='{badge_cls}'>{row['Signal']}</span></td>"
-                f"</tr>"
-            )
-
-        table_html = f"""
-        <div class="custom-table-container">
-            <table class="styled-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Stock Name</th>
-                        <th>Price</th>
-                        <th>Daily RSI</th>
-                        <th>Weekly RSI</th>
-                        <th>Monthly RSI</th>
-                        <th>> EMA 20</th>
-                        <th>> EMA 50</th>
-                        <th>> EMA 100</th>
-                        <th>> EMA 200</th>
-                        <th>Signal</th>
-                    </tr>
-                </thead>
-                <tbody>{''.join(table_rows)}</tbody>
-            </table>
-        </div>
-        """
-        st.markdown(table_html, unsafe_allow_html=True)
-    else:
-        st.error("Could not fetch data for the provided ticker symbols.")
+  st.warning("No stock data available. Add symbols above to begin scanning.")
