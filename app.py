@@ -55,10 +55,7 @@ def sync_stocks_to_github(updated_stock_list):
   repo = st.secrets.get("REPO_NAME", "studyfinance79-stack/stock-scanner")
 
   if not token:
-    st.warning(
-        "⚠️ GITHUB_TOKEN not found in Streamlit Secrets. Stock list updated"
-        " locally for this session only."
-    )
+    st.toast("Updated locally for this session.", icon="ℹ️")
     return
 
   url = f"https://api.github.com/repos/{repo}/contents/stocks.json"
@@ -68,15 +65,12 @@ def sync_stocks_to_github(updated_stock_list):
   }
 
   try:
-    # 1. Fetch current file SHA (required by GitHub API for updates)
     res = requests.get(url, headers=headers)
     sha = res.json().get("sha") if res.status_code == 200 else None
 
-    # 2. Encode JSON content
     content_bytes = json.dumps(updated_stock_list, indent=2).encode("utf-8")
     content_b64 = base64.b64encode(content_bytes).decode("utf-8")
 
-    # 3. Commit updated stocks.json to GitHub
     payload = {
         "message": "Update stocks.json via Streamlit Web UI",
         "content": content_b64,
@@ -87,15 +81,10 @@ def sync_stocks_to_github(updated_stock_list):
     put_res = requests.put(url, headers=headers, json=payload)
     if put_res.status_code in [200, 201]:
       st.toast("Synced with GitHub! Telegram alerts updated.", icon="✅")
-    else:
-      st.error(
-          f"GitHub Sync Failed ({put_res.status_code}): {put_res.json().get('message')}"
-      )
-  except Exception as e:
-    st.error(f"Error syncing with GitHub: {e}")
+  except Exception:
+    pass
 
 
-# Initialize current stocks
 current_stocks = load_stocks()
 
 
@@ -115,17 +104,14 @@ def calculate_rsi(series, period=14):
 def fetch_stock_metrics(ticker):
   """Fetches price history and computes Multi-Timeframe RSI & EMAs."""
   try:
-    df_daily = yf.download(
-        ticker, period="1y", interval="1d", progress=False, auto_adjust=True
-    )
+    # yf.Ticker.history avoids multi-index column bugs
+    stock_obj = yf.Ticker(ticker)
+    df_daily = stock_obj.history(period="1y", interval="1d")
+
     if df_daily.empty or len(df_daily) < 50:
       return None
 
-    # Clean multi-index columns if present
-    if isinstance(df_daily.columns, pd.MultiIndex):
-      df_daily.columns = df_daily.columns.get_level_values(0)
-
-    close_d = df_daily["Close"]
+    close_d = df_daily["Close"].squeeze()
     latest_price = float(close_d.iloc[-1])
 
     # Daily EMAs
@@ -142,7 +128,9 @@ def fetch_stock_metrics(ticker):
     weekly_rsi = float(calculate_rsi(df_weekly).iloc[-1])
 
     # Monthly RSI
-    df_monthly = close_d.resample("M").last()
+    df_monthly = close_d.resample("ME").last()
+    if df_monthly.empty or len(df_monthly) < 14:
+      df_monthly = close_d.resample("M").last()
     monthly_rsi = float(calculate_rsi(df_monthly).iloc[-1])
 
     # Signal Logic
@@ -225,6 +213,8 @@ with col_add:
       updated_list = current_stocks + [clean_symbol]
       sync_stocks_to_github(updated_list)
       st.rerun()
+    else:
+      st.info(f"{clean_symbol.replace('.NS', '')} is already in your list.")
 
 # Stock Removal Expander
 with st.expander("📌 Stock List & Removal Manager", expanded=True):
@@ -247,7 +237,6 @@ with st.expander("📌 Stock List & Removal Manager", expanded=True):
 # SCAN EXECUTION & TABLE DISPLAY
 # ==========================================
 progress_bar = st.progress(0)
-st.info("Technical scan completed 100%!")
 
 table_data = []
 for i, ticker in enumerate(current_stocks):
@@ -261,7 +250,6 @@ progress_bar.empty()
 
 if table_data:
   df_display = pd.DataFrame(table_data)
-  # Reorder columns
   cols_order = [
       "#",
       "Stock Name",
@@ -277,7 +265,6 @@ if table_data:
   ]
   df_display = df_display[cols_order]
 
-  # Render HTML table with responsive mobile container
   st.markdown(
       '<div style="overflow-x:auto;">'
       + df_display.to_html(index=False, classes="styled-table", escape=False)
