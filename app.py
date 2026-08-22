@@ -7,15 +7,15 @@ import streamlit as st
 import yfinance as yf
 
 # ==========================================
-# PAGE CONFIGURATION
+# 1. PAGE CONFIGURATION
 # ==========================================
 st.set_page_config(
-    page_title="Pro Technical Stock Scanner 8K", page_icon="⚡", layout="wide"
+    page_title="Pro Technical Stock Scanner 8K AI", page_icon="⚡", layout="wide"
 )
 
 
 # ==========================================
-# GITHUB API & STOCK LIST SYNC
+# 2. GITHUB API & STOCK LIST SYNC
 # ==========================================
 def load_stocks():
   if "stocks" not in st.session_state:
@@ -41,7 +41,6 @@ def load_stocks():
 
 def sync_stocks_to_github(updated_stock_list):
   st.session_state.stocks = updated_stock_list
-
   try:
     with open("stocks.json", "w") as f:
       json.dump(updated_stock_list, f, indent=2)
@@ -85,25 +84,96 @@ def sync_stocks_to_github(updated_stock_list):
 current_stocks = load_stocks()
 
 # ==========================================
-# CONTROLS & DYNAMIC UI THEME ENGINE (HD 8K)
+# 3. DYNAMIC THEME & TEXTURE ENGINE
 # ==========================================
-col_theme, col_add = st.columns([1, 1])
+# SVG Texture Patterns encoded in base64
+DIAMOND_SVG = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTEwIDAgTDIwIDEwIEwxMCAyMCBMMCAxMCBaIiBmaWxsPSJub25lIiBzdHJva2U9InJnYmEoMjU1LDI1NSwyNTUsMC4wOCkiIHN0cm9rZS13aWR0aD0iMSIvPjwvc3ZnPg=="
+HONEYCOMB_SVG = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iNDEuNTciIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTEyIDBMMjQgNi45M1YyMC43OEwxMiAyNy43MUwwIDIwLjc4VjYuOTNMMTIgMFpNMTIgNDEuNTdMMjQgMzQuNjRWMjAuNzhMMTIgMjcuNzFMMCAyMC43OFYzNC42NEwxMiA0MS41N1oiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjA2KSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9zdmc+"
+RHOMBUS_SVG = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAiIGhlaWdodD0iMzAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTAgMTUgTDE1IDAgTDMwIDE1IEwxNSAzMCBaIiBmaWxsPSJub25lIiBzdHJva2U9InJnYmEoMjU1LDI1NSwyNTUsMC4wNykiIHN0cm9rZS13aWR0aD0iMSIvPjwvc3ZnPg=="
+
+THEMES = {
+    "Dark Navy Blue (Diamond Pattern)": {
+        "bg": "#0a1128",
+        "card": "#101f42",
+        "text": "#f8fafc",
+        "accent": "#38bdf8",
+        "grid": "#1e3a8a",
+        "th_bg": "#1e293b",
+        "texture": DIAMOND_SVG,
+        "is_dark": True,
+    },
+    "Dark Bottle Green (Emerald Texture)": {
+        "bg": "#031e16",
+        "card": "#09382a",
+        "text": "#f0fdf4",
+        "accent": "#34d399",
+        "grid": "#059669",
+        "th_bg": "#064e3b",
+        "texture": HONEYCOMB_SVG,
+        "is_dark": True,
+    },
+    "Dark Grey Obsidian (Rhombus Grid)": {
+        "bg": "#121316",
+        "card": "#1c1e24",
+        "text": "#ffffff",
+        "accent": "#60a5fa",
+        "grid": "#374151",
+        "th_bg": "#282c34",
+        "texture": RHOMBUS_SVG,
+        "is_dark": True,
+    },
+    "24K Metallic Gold (Dark Contrast Text)": {
+        "bg": "#d4af37",
+        "card": "#fef3c7",
+        "text": "#1e1b4b",
+        "accent": "#854d0e",
+        "grid": "#b45309",
+        "th_bg": "#fde68a",
+        "texture": DIAMOND_SVG,
+        "is_dark": False,
+    },
+    "Metallic Silver (High Contrast)": {
+        "bg": "#cbd5e1",
+        "card": "#f1f5f9",
+        "text": "#0f172a",
+        "accent": "#1e293b",
+        "grid": "#64748b",
+        "th_bg": "#e2e8f0",
+        "texture": RHOMBUS_SVG,
+        "is_dark": False,
+    },
+    "Metallic Copper (Warm Texture)": {
+        "bg": "#2a1810",
+        "card": "#42281d",
+        "text": "#ffedd5",
+        "accent": "#fb923c",
+        "grid": "#9a3412",
+        "th_bg": "#573022",
+        "texture": HONEYCOMB_SVG,
+        "is_dark": True,
+    },
+    "Camel Green Earth": {
+        "bg": "#1a2418",
+        "card": "#2b3a28",
+        "text": "#f7fee7",
+        "accent": "#a3e635",
+        "grid": "#4d7c0f",
+        "th_bg": "#364d30",
+        "texture": DIAMOND_SVG,
+        "is_dark": True,
+    },
+}
+
+col_theme, col_add = st.columns([1.2, 1])
 
 with col_theme:
   theme_choice = st.selectbox(
-      "🎨 Select UI Theme Presentation:",
-      [
-          "Dark Cyber Neon",
-          "Obsidian Glass",
-          "Golden Honeycomb",
-          "Emerald Forest",
-      ],
+      "🎨 Select HD Theme & Pattern Presentation:", list(THEMES.keys())
   )
 
 with col_add:
   new_symbol = st.text_input(
-      "➕ Add Stock Symbol (Auto-Refreshes):",
-      placeholder="e.g. TATAMOTORS, RELIANCE",
+      "➕ Add Stock Symbol:", placeholder="e.g. TATAMOTORS, RELIANCE"
   )
   if new_symbol:
     clean_symbol = new_symbol.strip().upper()
@@ -114,153 +184,137 @@ with col_add:
       updated_list = current_stocks + [clean_symbol]
       sync_stocks_to_github(updated_list)
       st.rerun()
-    else:
-      st.info(f"{clean_symbol.replace('.NS', '')} is already in your list.")
 
-THEMES = {
-    "Dark Cyber Neon": {
-        "bg": "#07090e",
-        "card": "#0f172a",
-        "accent": "#38bdf8",
-        "border": "rgba(56, 189, 248, 0.3)",
-        "text": "#f8fafc",
-    },
-    "Obsidian Glass": {
-        "bg": "#121212",
-        "card": "#1e1e1e",
-        "accent": "#90caf9",
-        "border": "#333333",
-        "text": "#ffffff",
-    },
-    "Golden Honeycomb": {
-        "bg": "#0c0d0e",
-        "card": "#181a1d",
-        "accent": "#fbbf24",
-        "border": "rgba(251, 191, 36, 0.3)",
-        "text": "#f3f4f6",
-    },
-    "Emerald Forest": {
-        "bg": "#04130e",
-        "card": "#0a261d",
-        "accent": "#34d399",
-        "border": "rgba(52, 211, 153, 0.3)",
-        "text": "#f0fdf4",
-    },
-}
+active_theme = THEMES[theme_choice]
 
-active_theme = THEMES.get(theme_choice, THEMES["Dark Cyber Neon"])
-
+# Inject Custom High-Contrast Styling with Visible Column/Row Grid Lines
 st.markdown(
     f"""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
     
     html, body, [class*="css"] {{
         font-family: 'Inter', sans-serif;
     }}
     
-    .stApp {{ background-color: {active_theme['bg']}; }}
+    .stApp {{ 
+        background-color: {active_theme['bg']};
+        background-image: url('{active_theme['texture']}');
+        background-repeat: repeat;
+    }}
     
     .main-title {{ 
         text-align: center; 
         color: {active_theme['accent']}; 
         font-size: 2.3rem; 
-        font-weight: 800; 
+        font-weight: 900; 
         letter-spacing: -0.5px;
         margin-bottom: 2px; 
-        text-shadow: 0 0 20px {active_theme['accent']}44;
+        text-shadow: 0 0 15px {active_theme['accent']}55;
     }}
     .sub-title {{ 
         text-align: center; 
-        color: #94a3b8; 
-        font-size: 0.92rem; 
-        font-weight: 600;
-        margin-bottom: 25px; 
+        color: {active_theme['text']}; 
+        opacity: 0.85;
+        font-size: 0.95rem; 
+        font-weight: 700;
+        margin-bottom: 20px; 
     }}
     
-    /* GLASSMORPHISM TABLE STYLING */
+    /* HIGH-CONTRAST THICK GRID TABLE STYLING */
     .styled-table {{ 
         width: 100%; 
-        border-collapse: separate; 
-        border-spacing: 0; 
+        border-collapse: collapse !important; 
         margin-top: 15px; 
         color: {active_theme['text']}; 
         background: {active_theme['card']};
-        border-radius: 12px;
+        border-radius: 8px;
         overflow: hidden;
-        border: 1px solid {active_theme['border']};
-        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        border: 3px solid {active_theme['grid']} !important;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.6);
     }}
     .styled-table th {{ 
-        background-color: rgba(255, 255, 255, 0.03); 
-        color: {active_theme['accent']}; 
+        background-color: {active_theme['th_bg']} !important; 
+        color: {active_theme['accent']} !important; 
         text-align: center; 
-        padding: 14px 10px; 
-        font-weight: 700; 
-        font-size: 0.85rem;
+        padding: 13px 8px; 
+        font-weight: 800; 
+        font-size: 0.82rem;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        border-bottom: 2px solid {active_theme['border']}; 
+        border: 2px solid {active_theme['grid']} !important; 
     }}
     .styled-table td {{ 
-        padding: 12px 10px; 
+        padding: 10px 6px; 
         text-align: center; 
-        font-size: 0.88rem;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05); 
+        font-size: 0.86rem;
+        font-weight: 600;
+        border: 2px solid {active_theme['grid']} !important; 
     }}
     .styled-table tr:hover {{
-        background-color: rgba(255, 255, 255, 0.03);
+        background-color: rgba(255, 255, 255, 0.08);
     }}
     
     /* GLOWING LED BADGES */
     .led-green {{
-        background: rgba(16, 185, 129, 0.15);
-        color: #34d399;
-        border: 1px solid #10b981;
-        box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
-        border-radius: 20px;
-        padding: 3px 10px;
-        font-weight: 700;
+        background: rgba(16, 185, 129, 0.2);
+        color: #10b981;
+        border: 1.5px solid #10b981;
+        box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+        border-radius: 16px;
+        padding: 2px 8px;
+        font-weight: 800;
         font-size: 0.78rem;
         display: inline-block;
     }}
     .led-red {{
-        background: rgba(239, 68, 68, 0.15);
-        color: #fca5a5;
-        border: 1px solid #ef4444;
-        box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
-        border-radius: 20px;
-        padding: 3px 10px;
-        font-weight: 700;
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+        border: 1.5px solid #ef4444;
+        box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+        border-radius: 16px;
+        padding: 2px 8px;
+        font-weight: 800;
         font-size: 0.78rem;
         display: inline-block;
     }}
     .led-yellow {{
-        background: rgba(245, 158, 11, 0.15);
-        color: #fde047;
-        border: 1px solid #f59e0b;
-        box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
-        border-radius: 20px;
-        padding: 3px 10px;
-        font-weight: 700;
+        background: rgba(245, 158, 11, 0.2);
+        color: #f59e0b;
+        border: 1.5px solid #f59e0b;
+        box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+        border-radius: 16px;
+        padding: 2px 8px;
+        font-weight: 800;
+        font-size: 0.78rem;
+        display: inline-block;
+    }}
+    .led-purple {{
+        background: rgba(168, 85, 247, 0.25);
+        color: #c084fc;
+        border: 1.5px solid #a855f7;
+        box-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+        border-radius: 16px;
+        padding: 2px 8px;
+        font-weight: 900;
         font-size: 0.78rem;
         display: inline-block;
     }}
     
     .tv-link {{
         color: {active_theme['accent']};
-        font-weight: 700;
+        font-weight: 800;
         text-decoration: none;
-        transition: all 0.2s ease;
     }}
     .tv-link:hover {{
         text-decoration: underline;
-        filter: brightness(1.2);
     }}
+    .arrow-up {{ color: #10b981; font-weight: 900; }}
+    .arrow-down {{ color: #ef4444; font-weight: 900; }}
 
     @media only screen and (max-width: 768px) {{
-        .styled-table th, .styled-table td {{ padding: 8px 4px !important; font-size: 0.72rem !important; }}
-        .main-title {{ font-size: 1.6rem !important; }}
+        .styled-table th, .styled-table td {{ padding: 6px 3px !important; font-size: 0.70rem !important; }}
+        .main-title {{ font-size: 1.5rem !important; }}
     }}
 </style>
 """,
@@ -269,17 +323,17 @@ st.markdown(
 
 # Header
 st.markdown(
-    '<div class="main-title">⚡ PRO TECHNICAL STOCK SCANNER HD</div>',
+    '<div class="main-title">⚡ PRO TECHNICAL STOCK SCANNER 8K AI</div>',
     unsafe_allow_html=True,
 )
 st.markdown(
-    '<div class="sub-title">Multi-Timeframe RSI, Moving Averages, Daily'
-    " Supertrend & ADX LED Analytics</div>",
+    '<div class="sub-title">Multi-Timeframe RSI, Supertrend, ADX, Volume'
+    " Spikes & AI Multi-Factor Signals</div>",
     unsafe_allow_html=True,
 )
 
 # Stock Manager
-with st.expander("📌 Stock List & Removal Manager", expanded=True):
+with st.expander("📌 Stock List & Removal Manager", expanded=False):
   cols = st.columns(6)
   stocks_to_remove = []
 
@@ -297,7 +351,7 @@ with st.expander("📌 Stock List & Removal Manager", expanded=True):
 
 
 # ==========================================
-# INDICATOR CALCULATION ENGINE
+# 4. INDICATOR ENGINE
 # ==========================================
 def calculate_rsi(series, period=14):
   if len(series) < period + 1:
@@ -313,7 +367,7 @@ def calculate_rsi(series, period=14):
 
 def calculate_supertrend(df, period=10, multiplier=3):
   if df is None or len(df) < period + 1:
-    return "N/A", '<span class="led-red">🔴 BEARISH</span>'
+    return "N/A", False, '<span class="led-red">🔴 BEARISH</span>'
 
   high = df["High"].copy()
   low = df["Low"].copy()
@@ -368,7 +422,7 @@ def calculate_supertrend(df, period=10, multiplier=3):
   latest_st = st_val.iloc[-1]
 
   if np.isnan(latest_st):
-    return "N/A", '<span class="led-yellow">🟡 NEUTRAL</span>'
+    return "N/A", False, '<span class="led-yellow">🟡 NEUTRAL</span>'
 
   val_str = f"₹{latest_st:,.1f}"
   status_html = (
@@ -376,12 +430,12 @@ def calculate_supertrend(df, period=10, multiplier=3):
       if is_bullish
       else '<span class="led-red">🔴 BEARISH</span>'
   )
-  return val_str, status_html
+  return val_str, is_bullish, status_html
 
 
 def calculate_adx(df, period=14):
   if df is None or len(df) < period * 2:
-    return "N/A", '<span class="led-yellow">🟡 WEAK</span>'
+    return "N/A", 0, '<span class="led-yellow">🟡 WEAK</span>'
 
   high = df["High"]
   low = df["Low"]
@@ -422,7 +476,7 @@ def calculate_adx(df, period=14):
   adx = dx.ewm(alpha=1 / period, adjust=False).mean().iloc[-1]
 
   if np.isnan(adx):
-    return "N/A", '<span class="led-yellow">🟡 WEAK</span>'
+    return "N/A", 0, '<span class="led-yellow">🟡 WEAK</span>'
 
   val_str = f"{adx:.1f}"
   if adx >= 25:
@@ -432,12 +486,11 @@ def calculate_adx(df, period=14):
   else:
     status_html = '<span class="led-red">🔴 WEAK</span>'
 
-  return val_str, status_html
+  return val_str, adx, status_html
 
 
 @st.cache_data(ttl=300)
 def fetch_batch_data(tickers):
-  """Downloads 2 years of complete stock OHLC data in one batch."""
   try:
     df = yf.download(
         tickers=tickers,
@@ -453,7 +506,6 @@ def fetch_batch_data(tickers):
 
 
 def extract_stock_df(ticker, batch_df):
-  """Extracts full OHLC DataFrame for a ticker."""
   if batch_df is not None and not batch_df.empty:
     try:
       if isinstance(batch_df.columns, pd.MultiIndex):
@@ -481,9 +533,9 @@ def extract_stock_df(ticker, batch_df):
 
 
 # ==========================================
-# SCANNER EXECUTION
+# 5. SCANNER EXECUTION
 # ==========================================
-progress_bar = st.progress(0, text="Initializing Market Scanner (0%)...")
+progress_bar = st.progress(0, text="Executing AI Technical Analysis (0%)...")
 table_data = []
 
 batch_df = fetch_batch_data(current_stocks)
@@ -493,13 +545,14 @@ for i, ticker in enumerate(current_stocks):
   pct = int(((i + 1) / total_stocks) * 100)
   clean_name = ticker.replace(".NS", "").replace(".BO", "")
   progress_bar.progress(
-      (i + 1) / total_stocks, text=f"Scanning {clean_name}... ({pct}%)"
+      (i + 1) / total_stocks, text=f"Analyzing {clean_name}... ({pct}%)"
   )
 
   stock_df = extract_stock_df(ticker, batch_df)
 
   if stock_df is not None and len(stock_df) >= 20:
     close_s = stock_df["Close"]
+    vol_s = stock_df["Volume"]
     latest_price = float(close_s.iloc[-1])
 
     # Moving Averages
@@ -524,10 +577,18 @@ for i, ticker in enumerate(current_stocks):
         else np.nan
     )
 
-    # RSIs
+    # RSIs (Daily, Weekly, Monthly) with Direction Arrows
     daily_rsi_s = calculate_rsi(close_s)
     daily_rsi = (
         float(daily_rsi_s.iloc[-1]) if not daily_rsi_s.empty else np.nan
+    )
+    daily_rsi_prev = (
+        float(daily_rsi_s.iloc[-2]) if len(daily_rsi_s) > 1 else daily_rsi
+    )
+    d_arrow = (
+        '<span class="arrow-up">↑</span>'
+        if daily_rsi >= daily_rsi_prev
+        else '<span class="arrow-down">↓</span>'
     )
 
     df_weekly = close_s.groupby(close_s.index.to_period("W")).last().dropna()
@@ -535,34 +596,118 @@ for i, ticker in enumerate(current_stocks):
     weekly_rsi = (
         float(weekly_rsi_s.iloc[-1]) if not weekly_rsi_s.empty else np.nan
     )
+    weekly_rsi_prev = (
+        float(weekly_rsi_s.iloc[-2]) if len(weekly_rsi_s) > 1 else weekly_rsi
+    )
+    w_arrow = (
+        '<span class="arrow-up">↑</span>'
+        if weekly_rsi >= weekly_rsi_prev
+        else '<span class="arrow-down">↓</span>'
+    )
 
     df_monthly = close_s.groupby(close_s.index.to_period("M")).last().dropna()
     monthly_rsi_s = calculate_rsi(df_monthly)
     monthly_rsi = (
         float(monthly_rsi_s.iloc[-1]) if not monthly_rsi_s.empty else np.nan
     )
+    monthly_rsi_prev = (
+        float(monthly_rsi_s.iloc[-2])
+        if len(monthly_rsi_s) > 1
+        else monthly_rsi
+    )
+    m_arrow = (
+        '<span class="arrow-up">↑</span>'
+        if monthly_rsi >= monthly_rsi_prev
+        else '<span class="arrow-down">↓</span>'
+    )
+
+    # Format RSIs with LED Threshold Rules (Monthly & Weekly Red < 60, Daily Red < 52)
+    def fmt_rsi_led(val, threshold, arrow):
+      if np.isnan(val):
+        return "N/A"
+      val_round = round(val, 2)
+      cls = "led-green" if val >= threshold else "led-red"
+      return f'<span class="{cls}">{val_round} {arrow}</span>'
+
+    daily_rsi_formatted = fmt_rsi_led(daily_rsi, 52, d_arrow)
+    weekly_rsi_formatted = fmt_rsi_led(weekly_rsi, 60, w_arrow)
+    monthly_rsi_formatted = fmt_rsi_led(monthly_rsi, 60, m_arrow)
+
+    # Volume Analytics (20-day Avg Vol, Volume Trend, Volume Spike)
+    curr_vol = float(vol_s.iloc[-1])
+    prev_vol = float(vol_s.iloc[-2]) if len(vol_s) > 1 else curr_vol
+    avg_vol20 = (
+        float(vol_s.rolling(20).mean().iloc[-1])
+        if len(vol_s) >= 20
+        else curr_vol
+    )
+
+    v_arrow = (
+        '<span class="arrow-up">↑</span>'
+        if curr_vol >= prev_vol
+        else '<span class="arrow-down">↓</span>'
+    )
+
+    if curr_vol >= 1.5 * avg_vol20 and curr_vol > prev_vol:
+      vol_status_html = '<span class="led-purple">🔥 SPIKE</span>'
+      vol_is_strong = True
+    elif curr_vol > avg_vol20:
+      vol_status_html = '<span class="led-green">🟢 ABOVE AVG</span>'
+      vol_is_strong = True
+    else:
+      vol_status_html = '<span class="led-red">🔴 LOW VOL</span>'
+      vol_is_strong = False
+
+    def human_format(num):
+      if num >= 1e7:
+        return f"{num/1e7:.2f}Cr"
+      if num >= 1e5:
+        return f"{num/1e5:.2f}L"
+      if num >= 1e3:
+        return f"{num/1e3:.1f}k"
+      return str(int(num))
+
+    vol_display = f"{human_format(curr_vol)} {v_arrow} {vol_status_html}"
 
     # Supertrend & ADX (Daily)
-    st_val_str, st_status_html = calculate_supertrend(stock_df)
-    adx_val_str, adx_status_html = calculate_adx(stock_df)
+    st_val_str, st_is_bullish, st_status_html = calculate_supertrend(stock_df)
+    adx_val_str, adx_val, adx_status_html = calculate_adx(stock_df)
 
-    # Overall Signal Logic
-    if (
-        not np.isnan(daily_rsi)
-        and not np.isnan(ema20)
-        and daily_rsi < 50
-        and latest_price < ema20
-    ):
-      signal_html = '<span class="led-red">🔴 SELL</span>'
-    elif (
-        not np.isnan(daily_rsi)
-        and not np.isnan(ema20)
-        and daily_rsi > 50
-        and latest_price > ema20
-    ):
-      signal_html = '<span class="led-green">🟢 HOLD</span>'
+    # ==========================================
+    # COMBINED AI MULTI-FACTOR SIGNAL MATRIX
+    # ==========================================
+    ai_score = 0.0
+
+    # 1. Monthly RSI Priority (Weight 2.0)
+    if not np.isnan(monthly_rsi) and monthly_rsi >= 60:
+      ai_score += 2.0
+    # 2. Weekly RSI Priority (Weight 1.5)
+    if not np.isnan(weekly_rsi) and weekly_rsi >= 60:
+      ai_score += 1.5
+    # 3. Daily RSI Priority (Weight 1.0)
+    if not np.isnan(daily_rsi) and daily_rsi >= 52:
+      ai_score += 1.0
+    # 4. Supertrend Alignment (Weight 2.0)
+    if st_is_bullish:
+      ai_score += 2.0
+    # 5. ADX Strength (Weight 1.5)
+    if adx_val >= 25:
+      ai_score += 1.5
+    elif adx_val >= 20:
+      ai_score += 0.8
+    # 6. Volume Spike / Volume Confirmation (Weight 1.0)
+    if vol_is_strong:
+      ai_score += 1.0
+
+    # Synthesize AI Signal
+    if ai_score >= 7.5:
+      ai_signal_html = '<span class="led-purple">🚀 STRONG BUY</span>'
+    elif ai_score >= 5.5:
+      ai_signal_html = '<span class="led-green">🟢 BUY</span>'
+    elif ai_score >= 3.5:
+      ai_signal_html = '<span class="led-yellow">🟡 HOLD</span>'
     else:
-      signal_html = '<span class="led-yellow">🟡 NEUTRAL</span>'
+      ai_signal_html = '<span class="led-red">🔴 WEAK / AVOID</span>'
 
     def fmt_ema(val):
       if np.isnan(val):
@@ -573,7 +718,7 @@ for i, ticker in enumerate(current_stocks):
           else '<span class="led-red">🔴 NO</span>'
       )
 
-    # TradingView Direct Link
+    # TradingView Link
     tv_url = f"https://in.tradingview.com/chart/?symbol=NSE:{clean_name}"
     tv_link_html = f'<a href="{tv_url}" target="_blank" class="tv-link" title="Open TradingView Chart">📈 {clean_name}</a>'
 
@@ -581,27 +726,22 @@ for i, ticker in enumerate(current_stocks):
         "#": len(table_data) + 1,
         "Stock Name": tv_link_html,
         "Price": f"₹{latest_price:,.2f}",
+        "AI Signal": ai_signal_html,
+        "Avg. Vol & Spike": vol_display,
         "Supertrend (10,3)": f"{st_val_str} {st_status_html}",
         "ADX (14)": f"{adx_val_str} {adx_status_html}",
-        "Daily RSI": (
-            round(daily_rsi, 2) if not np.isnan(daily_rsi) else "N/A"
-        ),
-        "Weekly RSI": (
-            round(weekly_rsi, 2) if not np.isnan(weekly_rsi) else "N/A"
-        ),
-        "Monthly RSI": (
-            round(monthly_rsi, 2) if not np.isnan(monthly_rsi) else "N/A"
-        ),
+        "Daily RSI (≥52)": daily_rsi_formatted,
+        "Weekly RSI (≥60)": weekly_rsi_formatted,
+        "Monthly RSI (≥60)": monthly_rsi_formatted,
         "> EMA 20": fmt_ema(ema20),
         "> EMA 50": fmt_ema(ema50),
         "> EMA 100": fmt_ema(ema100),
         "> EMA 200": fmt_ema(ema200),
-        "Signal": signal_html,
     })
 
 progress_bar.empty()
 
-# Render Table
+# Render High-Contrast Table
 if table_data:
   df_display = pd.DataFrame(table_data)
   st.markdown(
