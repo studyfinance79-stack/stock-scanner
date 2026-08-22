@@ -1,0 +1,14 @@
+name: Keep Streamlit App Awake
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping-app:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send HTTP Ping to Streamlit App
+        run: |
+          curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" https://stock-scanner-6ozterbafr2qxux7g2jhzk.streamlit.app
