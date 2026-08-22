@@ -293,20 +293,21 @@ for i, ticker in enumerate(current_stocks):
         else np.nan
     )
 
+    # Daily RSI
     daily_rsi_s = calculate_rsi(close_s)
     daily_rsi = (
         float(daily_rsi_s.iloc[-1]) if not daily_rsi_s.empty else np.nan
     )
 
-    df_weekly = close_s.resample("W").last().dropna()
+    # Weekly RSI (grouped by week period)
+    df_weekly = close_s.groupby(close_s.index.to_period("W")).last().dropna()
     weekly_rsi_s = calculate_rsi(df_weekly)
     weekly_rsi = (
         float(weekly_rsi_s.iloc[-1]) if not weekly_rsi_s.empty else np.nan
     )
 
-    df_monthly = close_s.resample("ME").last().dropna()
-    if len(df_monthly) < 14:
-      df_monthly = close_s.resample("M").last().dropna()
+    # Monthly RSI (grouped by month period)
+    df_monthly = close_s.groupby(close_s.index.to_period("M")).last().dropna()
     monthly_rsi_s = calculate_rsi(df_monthly)
     monthly_rsi = (
         float(monthly_rsi_s.iloc[-1]) if not monthly_rsi_s.empty else np.nan
