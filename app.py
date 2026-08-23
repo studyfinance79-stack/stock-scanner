@@ -1,4 +1,5 @@
 import base64
+import json
 import os
 import numpy as np
 import pandas as pd
@@ -24,7 +25,50 @@ st.set_page_config(
 )
 
 # -----------------------------------------------------------------------------
-# 2. AUTO-REFRESH CONTROLLER
+# 2. PERSISTENT TICKER STORAGE (JSON FILE)
+# -----------------------------------------------------------------------------
+TICKERS_FILE = "tickers.json"
+
+DEFAULT_TICKERS = [
+    "AEROFLEX",
+    "BLSE",
+    "DATAPATTNS",
+    "RELIANCE",
+    "TCS",
+    "INFY",
+    "TATAMOTORS",
+    "ICICIBANK",
+    "SBIN",
+    "HAL",
+]
+
+
+def load_saved_tickers():
+    if os.path.exists(TICKERS_FILE):
+        try:
+            with open(TICKERS_FILE, "r") as f:
+                data = json.load(f)
+                if isinstance(data, list) and len(data) > 0:
+                    return data
+        except Exception:
+            pass
+    return DEFAULT_TICKERS.copy()
+
+
+def save_tickers(ticker_list):
+    try:
+        with open(TICKERS_FILE, "w") as f:
+            json.dump(ticker_list, f, indent=2)
+    except Exception as e:
+        st.error(f"Failed to save stock list: {e}")
+
+
+# Initialize session state from saved file
+if "ticker_list" not in st.session_state:
+    st.session_state.ticker_list = load_saved_tickers()
+
+# -----------------------------------------------------------------------------
+# 3. AUTO-REFRESH CONTROLLER
 # -----------------------------------------------------------------------------
 st.sidebar.markdown("### 🔄 Auto-Refresh Data")
 refresh_option = st.sidebar.selectbox(
@@ -52,7 +96,7 @@ if refresh_option != "Off":
 
 
 # -----------------------------------------------------------------------------
-# 3. HELPER TO LOAD PRESET REPOSITORY IMAGES
+# 4. HELPER TO LOAD PRESET REPOSITORY IMAGES
 # -----------------------------------------------------------------------------
 def get_base64_image(target_name):
     if not target_name:
@@ -88,25 +132,6 @@ def get_base64_image(target_name):
 
     return None, None
 
-
-# -----------------------------------------------------------------------------
-# 4. INITIALIZE SESSION STATE FOR TICKERS
-# -----------------------------------------------------------------------------
-DEFAULT_TICKERS = [
-    "AEROFLEX",
-    "BLSE",
-    "DATAPATTNS",
-    "RELIANCE",
-    "TCS",
-    "INFY",
-    "TATAMOTORS",
-    "ICICIBANK",
-    "SBIN",
-    "HAL",
-]
-
-if "ticker_list" not in st.session_state:
-    st.session_state.ticker_list = DEFAULT_TICKERS.copy()
 
 # -----------------------------------------------------------------------------
 # 5. SIDEBAR THEME & LIVE CUSTOM IMAGE UPLOADER
@@ -523,7 +548,7 @@ with tab_scanner:
         st.markdown(html_table, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# TAB 2: ADD / REMOVE / UPDATE STOCKS
+# TAB 2: ADD / REMOVE / UPDATE STOCKS WITH PERMANENT SAVING
 # -----------------------------------------------------------------------------
 with tab_manage:
     st.subheader("Manage Stock Tickers")
@@ -540,8 +565,9 @@ with tab_manage:
                 clean_t = new_ticker.strip().upper().replace(".NS", "")
                 if clean_t not in st.session_state.ticker_list:
                     st.session_state.ticker_list.append(clean_t)
+                    save_tickers(st.session_state.ticker_list)  # Save to file
                     st.cache_data.clear()
-                    st.success(f"Added {clean_t} successfully!")
+                    st.success(f"Added and saved {clean_t} permanently!")
                     st.rerun()
 
     with col_remove:
@@ -552,8 +578,9 @@ with tab_manage:
         if st.button("Remove Selected Ticker"):
             if to_remove in st.session_state.ticker_list:
                 st.session_state.ticker_list.remove(to_remove)
+                save_tickers(st.session_state.ticker_list)  # Save to file
                 st.cache_data.clear()
-                st.success(f"Removed {to_remove}!")
+                st.success(f"Removed {to_remove} permanently!")
                 st.rerun()
 
     st.markdown("---")
@@ -570,8 +597,9 @@ with tab_manage:
             if t.strip()
         ]
         st.session_state.ticker_list = newList
+        save_tickers(st.session_state.ticker_list)  # Save to file
         st.cache_data.clear()
-        st.success("Ticker list updated!")
+        st.success("Ticker list updated and saved permanently!")
         st.rerun()
 
 # -----------------------------------------------------------------------------
@@ -579,7 +607,7 @@ with tab_manage:
 # -----------------------------------------------------------------------------
 with tab_background:
     st.subheader("Upload Background & Set Card Themes")
-    st.info("You can also manage background wallpapers directly from here.")
+    st.info("Manage background wallpapers directly from here.")
     up_file = st.file_uploader(
         "Upload Custom Background (.jpg / .png)",
         type=["jpg", "jpeg", "png", "webp"],
