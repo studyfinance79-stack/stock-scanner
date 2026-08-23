@@ -311,7 +311,7 @@ st.markdown(
 
 
 # -----------------------------------------------------------------------------
-# 6. TECHNICAL INDICATOR CALCULATOR (SUPERTREND 10,2 & STRICT BEARISH RULES)
+# 6. TECHNICAL INDICATOR CALCULATOR (SUPERTREND FIXED WITHOUT NaN)
 # -----------------------------------------------------------------------------
 def calculate_rsi(series, period=14):
     delta = series.diff()
@@ -347,26 +347,33 @@ def calculate_adx(df, period=14):
 
 
 def calculate_supertrend(df, period=10, multiplier=2):
-    """Calculates exact ATR-based SuperTrend (10, 2)."""
+    """Calculates exact ATR-based SuperTrend (10, 2) without NaN propagation."""
     df = df.copy()
     high, low, close = df["High"], df["Low"], df["Close"]
 
+    # Calculate True Range (TR)
     tr1 = high - low
     tr2 = (high - close.shift(1)).abs()
     tr3 = (low - close.shift(1)).abs()
     tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-    atr = tr.rolling(period).mean()
 
+    # 10-period Average True Range
+    atr = tr.rolling(window=period).mean()
+
+    # Basic Bands
     hl2 = (high + low) / 2
     basic_upper = hl2 + (multiplier * atr)
     basic_lower = hl2 - (multiplier * atr)
 
-    final_upper = pd.Series(0.0, index=df.index)
-    final_lower = pd.Series(0.0, index=df.index)
-    st_dir = pd.Series(True, index=df.index)
-    supertrend = pd.Series(0.0, index=df.index)
+    # Initialize final bands
+    final_upper = basic_upper.copy()
+    final_lower = basic_lower.copy()
+    st_dir = np.ones(len(df), dtype=bool)  # True = Bullish, False = Bearish
+    supertrend = np.zeros(len(df))
 
-    for i in range(1, len(df)):
+    # Start loop after the ATR warm-up period (index >= period)
+    for i in range(period, len(df)):
+        # Final Upper Band
         if (
             basic_upper.iloc[i] < final_upper.iloc[i - 1]
             or close.iloc[i - 1] > final_upper.iloc[i - 1]
@@ -375,6 +382,7 @@ def calculate_supertrend(df, period=10, multiplier=2):
         else:
             final_upper.iloc[i] = final_upper.iloc[i - 1]
 
+        # Final Lower Band
         if (
             basic_lower.iloc[i] > final_lower.iloc[i - 1]
             or close.iloc[i - 1] < final_lower.iloc[i - 1]
@@ -383,18 +391,19 @@ def calculate_supertrend(df, period=10, multiplier=2):
         else:
             final_lower.iloc[i] = final_lower.iloc[i - 1]
 
-        if st_dir.iloc[i - 1] and close.iloc[i] < final_lower.iloc[i]:
-            st_dir.iloc[i] = False
-        elif not st_dir.iloc[i - 1] and close.iloc[i] > final_upper.iloc[i]:
-            st_dir.iloc[i] = True
+        # SuperTrend Trend Direction
+        if st_dir[i - 1] and close.iloc[i] < final_lower.iloc[i]:
+            st_dir[i] = False
+        elif not st_dir[i - 1] and close.iloc[i] > final_upper.iloc[i]:
+            st_dir[i] = True
         else:
-            st_dir.iloc[i] = st_dir.iloc[i - 1]
+            st_dir[i] = st_dir[i - 1]
 
-        supertrend.iloc[i] = (
-            final_lower.iloc[i] if st_dir.iloc[i] else final_upper.iloc[i]
+        supertrend[i] = (
+            final_lower.iloc[i] if st_dir[i] else final_upper.iloc[i]
         )
 
-    return supertrend.iloc[-1], st_dir.iloc[-1]
+    return supertrend[-1], bool(st_dir[-1])
 
 
 @st.cache_data(ttl=60)
@@ -541,7 +550,7 @@ with tab_scanner:
                 else ""
             )
             html_table += f"<th {align_css}>{h}</th>"
-        html_table += "</tr>互</thead><tbody>"
+        html_table += "</tr></thead><tbody>"
 
         bearish_alerts_queue = []
 
