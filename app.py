@@ -1,10 +1,11 @@
+import os
 import numpy as np
 import pandas as pd
 import streamlit as st
 import yfinance as yf
 
 # -----------------------------------------------------------------------------
-# 1. PAGE CONFIGURATION
+# 1. PAGE SETUP
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="Technical Stock Scanner Ultra HD",
@@ -14,85 +15,108 @@ st.set_page_config(
 )
 
 # -----------------------------------------------------------------------------
-# 2. THEMES & ULTRA HD CSS ENGINE
+# 2. IMAGE THEMES & ULTRA HD HIGH-CONTRAST ENGINE
 # -----------------------------------------------------------------------------
 THEMES = {
-    "Original Dark Navy": {
-        "bg": "#0b1426",
+    "Bodhi Leaf Luxe": {
+        "image": "bodhi leaf.png",
+        "card_bg": "rgba(11, 20, 38, 0.88)",
+        "header_bg": "rgba(17, 34, 64, 0.95)",
+        "accent": "#38bdf8",
+        "border": "#0284c7",
+    },
+    "Royal Blue Honeycomb": {
+        "image": "honey comb royal blue.png",
+        "card_bg": "rgba(6, 18, 38, 0.88)",
+        "header_bg": "rgba(12, 30, 62, 0.95)",
+        "accent": "#38bdf8",
+        "border": "#1d4ed8",
+    },
+    "Golden Honeycomb": {
+        "image": "honey comb golden.png",
+        "card_bg": "rgba(15, 12, 5, 0.88)",
+        "header_bg": "rgba(35, 27, 8, 0.95)",
+        "accent": "#fbbf24",
+        "border": "#d97706",
+    },
+    "Rhombus Geometric": {
+        "image": "rohmbus pattern.png",
+        "card_bg": "rgba(10, 15, 26, 0.88)",
+        "header_bg": "rgba(20, 30, 50, 0.95)",
+        "accent": "#38bdf8",
+        "border": "#0369a1",
+    },
+    "Glowing Ficus Leaf": {
+        "image": "glowing ficus religosa leaf.png",
+        "card_bg": "rgba(8, 14, 28, 0.88)",
+        "header_bg": "rgba(18, 30, 56, 0.95)",
+        "accent": "#60a5fa",
+        "border": "#2563eb",
+    },
+    "Copper Vertical Strips": {
+        "image": "copper strips vertical.png",
+        "card_bg": "rgba(18, 12, 10, 0.88)",
+        "header_bg": "rgba(38, 22, 16, 0.95)",
+        "accent": "#f97316",
+        "border": "#c2410c",
+    },
+    "Classic Dark Navy": {
+        "image": "",
         "card_bg": "#0d192d",
         "header_bg": "#112240",
         "accent": "#38bdf8",
         "border": "#1e293b",
-        "hover": "#132238",
-    },
-    "Cyberpunk Dusk": {
-        "bg": "#0f0814",
-        "card_bg": "#1a0d24",
-        "header_bg": "#28123b",
-        "accent": "#c084fc",
-        "border": "#3b1a5a",
-        "hover": "#221133",
-    },
-    "Emerald Forest": {
-        "bg": "#04140e",
-        "card_bg": "#0a241a",
-        "header_bg": "#103828",
-        "accent": "#34d399",
-        "border": "#174e38",
-        "hover": "#0e2d21",
-    },
-    "OLED Pitch Black": {
-        "bg": "#000000",
-        "card_bg": "#0d0d0d",
-        "header_bg": "#1a1a1a",
-        "accent": "#60a5fa",
-        "border": "#262626",
-        "hover": "#171717",
     },
 }
 
-# Sidebar Theme Selector
-st.sidebar.markdown("### 🎨 Theme & Settings")
+st.sidebar.markdown("### 🎨 Select Background Theme")
 selected_theme_name = st.sidebar.selectbox(
-    "Choose Visual Theme", list(THEMES.keys()), index=0
+    "Choose Theme", list(THEMES.keys()), index=0
 )
 theme = THEMES[selected_theme_name]
 
-# Apply Theme Dynamic CSS
+# Check local background image path
+bg_css = f"background-image: linear-gradient(rgba(11,20,38,0.7), rgba(11,20,38,0.7)), url('{theme['image']}'); background-size: cover; background-attachment: fixed;" if theme["image"] and os.path.exists(theme["image"]) else f"background-color: #0b1426;"
+
 st.markdown(
     f"""
 <style>
+    /* Ultra HD Background Styling */
     .stApp {{
-        background-color: {theme['bg']};
-        color: #e2e8f0;
-    }}
-    .css-1d3b13b, .stSidebar {{
-        background-color: {theme['card_bg']} !important;
-        border-right: 1px solid {theme['border']};
+        {bg_css}
+        color: #f8fafc;
     }}
     
-    /* Header Header Glow */
+    .stSidebar {{
+        background-color: {theme['card_bg']} !important;
+        border-right: 2px solid {theme['border']} !important;
+        backdrop-filter: blur(12px);
+    }}
+
+    /* Headers */
     .app-header {{
-        font-size: 28px;
+        font-size: 30px;
         font-weight: 800;
         color: {theme['accent']};
-        margin-bottom: 2px;
+        margin-bottom: 4px;
         letter-spacing: -0.5px;
+        text-shadow: 0 2px 10px rgba(0,0,0,0.8);
     }}
     .app-subtitle {{
         font-size: 13px;
-        color: #94a3b8;
-        margin-bottom: 20px;
+        color: #cbd5e1;
+        margin-bottom: 22px;
     }}
 
-    /* Ultra HD Glass Table */
+    /* Table Container & Thick Borders */
     .table-container {{
         width: 100%;
         overflow-x: auto;
-        border: 1px solid {theme['border']};
+        border: 2px solid {theme['border']};
         border-radius: 10px;
         background-color: {theme['card_bg']};
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(12px);
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
     }}
     
     .scanner-table {{
@@ -103,30 +127,51 @@ st.markdown(
         text-align: center;
     }}
     
+    /* Thick Table Header Lines */
     .scanner-table th {{
         background-color: {theme['header_bg']};
         color: {theme['accent']};
-        font-weight: 700;
+        font-weight: 800;
         padding: 14px 10px;
-        border: 1px solid {theme['border']};
+        border: 2px solid {theme['border']} !important;
         white-space: nowrap;
-        font-size: 11px;
+        font-size: 12px;
         text-transform: uppercase;
-        letter-spacing: 0.6px;
+        letter-spacing: 0.5px;
     }}
     
+    /* Thick Row/Column Grid Lines */
     .scanner-table td {{
-        padding: 12px 8px;
-        border: 1px solid {theme['border']};
+        padding: 12px 10px;
+        border: 2px solid {theme['border']} !important;
         vertical-align: middle;
-        background-color: {theme['bg']};
+        background-color: rgba(11, 20, 38, 0.65);
     }}
 
     .scanner-table tr:hover td {{
-        background-color: {theme['hover']};
+        background-color: rgba(30, 58, 138, 0.4) !important;
     }}
 
-    /* Indicator Badges */
+    /* Left Aligned TradingView Stock Links */
+    .stock-title-cell {{
+        text-align: left !important;
+        padding-left: 16px !important;
+    }}
+    
+    .stock-link {{
+        color: {theme['accent']} !important;
+        font-weight: 800;
+        font-size: 14px;
+        text-decoration: none;
+        transition: all 0.2s ease-in-out;
+    }}
+    
+    .stock-link:hover {{
+        color: #ffffff !important;
+        text-decoration: underline;
+    }}
+
+    /* Badge Pills */
     .badge {{
         display: inline-block;
         padding: 3px 8px;
@@ -138,28 +183,24 @@ st.markdown(
         letter-spacing: 0.5px;
     }}
     .badge-green {{
-        background-color: rgba(16, 185, 129, 0.15);
+        background-color: rgba(16, 185, 129, 0.25);
         color: #34d399;
-        border: 1px solid #059669;
+        border: 1px solid #10b981;
     }}
     .badge-purple {{
-        background-color: rgba(168, 85, 247, 0.15);
+        background-color: rgba(168, 85, 247, 0.25);
         color: #c084fc;
-        border: 1px solid #7e22ce;
+        border: 1px solid #a855f7;
     }}
     .badge-red {{
-        background-color: rgba(239, 68, 68, 0.15);
+        background-color: rgba(239, 68, 68, 0.25);
         color: #fca5a5;
-        border: 1px solid #dc2626;
+        border: 1px solid #ef4444;
     }}
+    
     .cell-val {{
-        font-weight: 600;
+        font-weight: 700;
         color: #f8fafc;
-    }}
-    .stock-title {{
-        color: {theme['accent']};
-        font-weight: 800;
-        font-size: 14px;
     }}
 </style>
 """,
@@ -168,7 +209,7 @@ st.markdown(
 
 
 # -----------------------------------------------------------------------------
-# 3. LIVE TECHNICAL CALCULATOR & DATA FETCHER
+# 3. LIVE TECHNICAL CALCULATOR & DATA ENGINE
 # -----------------------------------------------------------------------------
 def calculate_rsi(series, period=14):
     delta = series.diff()
@@ -215,7 +256,6 @@ def fetch_live_stock_data(tickers):
 
             clean_symbol = symbol.replace(".NS", "").replace("^", "")
 
-            # Current Price & Vol
             cp = df["Close"].iloc[-1]
             prev_cp = df["Close"].iloc[-2]
             price_change = ((cp - prev_cp) / prev_cp) * 100
@@ -226,16 +266,12 @@ def fetch_live_stock_data(tickers):
                 ((vol_curr - vol_avg) / vol_avg) * 100 if vol_avg > 0 else 0
             )
 
-            # EMAs
             ema20 = df["Close"].ewm(span=20).mean().iloc[-1]
             ema50 = df["Close"].ewm(span=50).mean().iloc[-1]
             ema100 = df["Close"].ewm(span=100).mean().iloc[-1]
             ema200 = df["Close"].ewm(span=200).mean().iloc[-1]
 
-            # Indicators
             rsi_daily = calculate_rsi(df["Close"], 14).iloc[-1]
-
-            # Resample for Weekly / Monthly RSI
             df_w = df["Close"].resample("W").last()
             df_m = df["Close"].resample("ME").last()
             rsi_weekly = (
@@ -246,12 +282,9 @@ def fetch_live_stock_data(tickers):
             )
 
             adx = calculate_adx(df, 14).iloc[-1]
-
-            # Supertrend Logic
-            st_val = ema20 * 0.95  # Dynamic proxy
+            st_val = ema20 * 0.95
             is_bullish_st = cp > st_val
 
-            # AI Score Calculation
             score = 0.0
             if cp > ema20:
                 score += 2.0
@@ -290,7 +323,7 @@ def fetch_live_stock_data(tickers):
 
 
 # -----------------------------------------------------------------------------
-# 4. DEFAULT STOCKS & AUTO-FETCH CONTROLS
+# 4. CONTROLS & HEADER
 # -----------------------------------------------------------------------------
 default_tickers = [
     "AEROFLEX.NS",
@@ -307,31 +340,28 @@ default_tickers = [
     "DIXON.NS",
 ]
 
-st.sidebar.markdown("### 📡 Stock Scanner Feed")
+st.sidebar.markdown("### 📡 NSE Ticker Feed")
 ticker_input = st.sidebar.text_area(
-    "NSE Ticker List (Comma Separated)",
-    value=", ".join(default_tickers),
-    height=120,
+    "Tickers (Comma Separated)", value=", ".join(default_tickers), height=120
 )
 ticker_list = [t.strip() for t in ticker_input.split(",") if t.strip()]
 
-if st.sidebar.button("🔄 Refresh Live Market Data", use_container_width=True):
+if st.sidebar.button("🔄 Refresh Market Data", use_container_width=True):
     st.cache_data.clear()
 
-# Fetch Data
-with st.spinner("Fetching live stock prices & calculating indicators..."):
-    df_live = fetch_live_stock_data(ticker_list)
-
-# Header Display
 st.markdown(
     '<div class="app-header">📈 Technical Stock Scanner</div>',
     unsafe_allow_html=True,
 )
 st.markdown(
-    '<div class="app-subtitle">Real-time live multi-timeframe indicator scanner'
-    ' with automated AI signals and EMA confluence.</div>',
+    '<div class="app-subtitle">Real-time indicators with direct TradingView'
+    " daily chart linkage and multi-timeframe analysis.</div>",
     unsafe_allow_html=True,
 )
+
+# Fetch Data
+with st.spinner("Loading Ultra HD Market Data..."):
+    df_live = fetch_live_stock_data(ticker_list)
 
 # -----------------------------------------------------------------------------
 # 5. TABLE RENDER ENGINE
@@ -340,6 +370,8 @@ if not df_live.empty:
     html_table = (
         '<div class="table-container"><table class="scanner-table"><thead><tr>'
     )
+
+    # Simplified Column Names
     headers = [
         "#",
         "STOCK NAME",
@@ -348,20 +380,24 @@ if not df_live.empty:
         "AVG. VOL & SPIKE",
         "SUPERTREND (10,3)",
         "ADX (14)",
-        "DAILY RSI (≥52)",
-        "WEEKLY RSI (≥60)",
-        "MONTHLY RSI (≥60)",
+        "DAILY RSI",
+        "WEEKLY RSI",
+        "MONTHLY RSI",
         "> EMA 20",
         "> EMA 50",
         "> EMA 100",
         "> EMA 200",
     ]
     for h in headers:
-        html_table += f"<th>{h}</th>"
+        align_css = (
+            'style="text-align: left; padding-left: 16px;"'
+            if h == "STOCK NAME"
+            else ""
+        )
+        html_table += f"<th {align_css}>{h}</th>"
     html_table += "</tr></thead><tbody>"
 
     for idx, row in df_live.iterrows():
-        # Format values
         cp_str = f"₹{row['price']:,.2f}"
         chg_badge = (
             '<span class="badge badge-green">UP</span>'
@@ -421,6 +457,10 @@ if not df_live.empty:
             else '<span class="badge badge-red">WEAK</span>'
         )
 
+        # TradingView Daily Chart Link
+        tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{row['symbol']}&interval=D"
+        stock_cell = f'<td class="stock-title-cell"><a href="{tv_url}" target="_blank" class="stock-link" title="Open TradingView Daily Chart">{row["symbol"]} ↗</a></td>'
+
         def ema_td(ema_val):
             is_above = row["price"] > ema_val
             badge = (
@@ -432,7 +472,7 @@ if not df_live.empty:
 
         html_table += f"""<tr>
             <td style="color: #64748b; font-weight: bold;">{idx+1}</td>
-            <td class="stock-title">{row['symbol']}</td>
+            {stock_cell}
             <td><div class="cell-val">{cp_str}</div>{chg_badge}</td>
             <td><div class="cell-val">{score_val:.1f} / 9.0</div>{score_badge}</td>
             <td><div class="cell-val">{vol_lakhs}</div>{vol_badge}</td>
@@ -451,4 +491,4 @@ if not df_live.empty:
     st.markdown(html_table, unsafe_allow_html=True)
 
 else:
-    st.error("No live stock data fetched. Please check your ticker list.")
+    st.error("No data fetched. Please check ticker list.")
