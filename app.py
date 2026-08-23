@@ -6,7 +6,7 @@ import streamlit as st
 import yfinance as yf
 
 # -----------------------------------------------------------------------------
-# 1. PAGE SETUP
+# 1. PAGE CONFIGURATION
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="Technical Stock Scanner Ultra HD",
@@ -17,20 +17,37 @@ st.set_page_config(
 
 
 # -----------------------------------------------------------------------------
-# 2. BASE64 IMAGE ENCODER FOR CSS BACKGROUNDS
+# 2. HELPER TO FIND & CONVERT IMAGES TO BASE64 (CASE-INSENSITIVE)
 # -----------------------------------------------------------------------------
-def get_base64_image(file_path):
-    if os.path.exists(file_path):
-        with open(file_path, "rb") as f:
-            data = f.read()
-        return base64.b64encode(data).decode()
+def get_base64_image(image_filename):
+    if not image_filename:
+        return None
+
+    # Search in root directory regardless of exact upper/lower case
+    current_files = os.listdir(".")
+    matched_file = None
+    for f in current_files:
+        if f.lower() == image_filename.lower():
+            matched_file = f
+            break
+
+    if matched_file and os.path.exists(matched_file):
+        with open(matched_file, "rb") as file:
+            return base64.b64encode(file.read()).decode("utf-8")
     return None
 
 
 # -----------------------------------------------------------------------------
-# 3. THEMES & ULTRA HD ENGINE
+# 3. THEME SELECTION & STYLING ENGINE
 # -----------------------------------------------------------------------------
 THEMES = {
+    "Golden Honeycomb": {
+        "image": "honey comb golden.png",
+        "card_bg": "rgba(18, 14, 5, 0.88)",
+        "header_bg": "rgba(38, 28, 8, 0.95)",
+        "accent": "#f59e0b",
+        "border": "#d97706",
+    },
     "Bodhi Leaf Luxe": {
         "image": "bodhi leaf.png",
         "card_bg": "rgba(11, 20, 38, 0.88)",
@@ -44,13 +61,6 @@ THEMES = {
         "header_bg": "rgba(12, 30, 62, 0.95)",
         "accent": "#38bdf8",
         "border": "#1d4ed8",
-    },
-    "Golden Honeycomb": {
-        "image": "honey comb golden.png",
-        "card_bg": "rgba(15, 12, 5, 0.88)",
-        "header_bg": "rgba(35, 27, 8, 0.95)",
-        "accent": "#fbbf24",
-        "border": "#d97706",
     },
     "Rhombus Geometric": {
         "image": "rohmbus pattern.png",
@@ -88,29 +98,32 @@ selected_theme_name = st.sidebar.selectbox(
 )
 theme = THEMES[selected_theme_name]
 
-# Convert image to Base64 string for HTML CSS injection
-b64_str = get_base64_image(theme["image"]) if theme["image"] else None
+# Get image Base64 string
+b64_str = get_base64_image(theme["image"])
 
 if b64_str:
     bg_style = f"""
-        background-image: linear-gradient(rgba(11, 20, 38, 0.65), rgba(11, 20, 38, 0.65)), url("data:image/png;base64,{b64_str}");
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-        background-attachment: fixed;
+        background-image: linear-gradient(rgba(10, 14, 23, 0.70), rgba(10, 14, 23, 0.70)), url("data:image/png;base64,{b64_str}") !important;
+        background-size: cover !important;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+        background-attachment: fixed !important;
     """
 else:
-    bg_style = f"background-color: #0b1426;"
+    bg_style = "background-color: #0b1426 !important;"
 
 st.markdown(
     f"""
 <style>
-    /* Ultra HD Background Injection */
+    /* Make Streamlit containers transparent to reveal background image */
     .stApp {{
         {bg_style}
-        color: #f8fafc;
     }}
     
+    [data-testid="stAppViewContainer"], [data-testid="stHeader"] {{
+        background: transparent !important;
+    }}
+
     .stSidebar {{
         background-color: {theme['card_bg']} !important;
         border-right: 2px solid {theme['border']} !important;
@@ -165,11 +178,11 @@ st.markdown(
         padding: 12px 10px;
         border: 2px solid {theme['border']} !important;
         vertical-align: middle;
-        background-color: rgba(11, 20, 38, 0.60);
+        background-color: rgba(11, 20, 38, 0.65);
     }}
 
     .scanner-table tr:hover td {{
-        background-color: rgba(30, 58, 138, 0.45) !important;
+        background-color: rgba(217, 119, 6, 0.25) !important;
     }}
 
     .stock-title-cell {{
@@ -226,7 +239,7 @@ st.markdown(
 
 
 # -----------------------------------------------------------------------------
-# 4. TECHNICAL INDICATOR CALCULATOR
+# 4. TECHNICAL INDICATOR CALCULATOR (FETCHES 5 YEARS FOR MONTHLY RSI)
 # -----------------------------------------------------------------------------
 def calculate_rsi(series, period=14):
     delta = series.diff()
@@ -267,7 +280,8 @@ def fetch_live_stock_data(tickers):
     for symbol in tickers:
         try:
             stock = yf.Ticker(symbol)
-            df = stock.history(period="1y")
+            # Fetch 5 years to ensure sufficient monthly data points (>15 months)
+            df = stock.history(period="5y")
             if df.empty or len(df) < 50:
                 continue
 
@@ -288,14 +302,19 @@ def fetch_live_stock_data(tickers):
             ema100 = df["Close"].ewm(span=100).mean().iloc[-1]
             ema200 = df["Close"].ewm(span=200).mean().iloc[-1]
 
+            # Daily RSI
             rsi_daily = calculate_rsi(df["Close"], 14).iloc[-1]
-            df_w = df["Close"].resample("W").last()
-            df_m = df["Close"].resample("ME").last()
+
+            # Weekly RSI
+            df_w = df["Close"].resample("W").last().dropna()
             rsi_weekly = (
-                calculate_rsi(df_w, 14).iloc[-1] if len(df_w) > 15 else 50.0
+                calculate_rsi(df_w, 14).iloc[-1] if len(df_w) >= 15 else 50.0
             )
+
+            # Monthly RSI (Now accurate with 5Y data)
+            df_m = df["Close"].resample("ME").last().dropna()
             rsi_monthly = (
-                calculate_rsi(df_m, 14).iloc[-1] if len(df_m) > 15 else 50.0
+                calculate_rsi(df_m, 14).iloc[-1] if len(df_m) >= 15 else 50.0
             )
 
             adx = calculate_adx(df, 14).iloc[-1]
@@ -340,7 +359,7 @@ def fetch_live_stock_data(tickers):
 
 
 # -----------------------------------------------------------------------------
-# 5. CONTROLS & HEADER
+# 5. HEADER & CONTROLS
 # -----------------------------------------------------------------------------
 default_tickers = [
     "AEROFLEX.NS",
@@ -376,11 +395,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-with st.spinner("Loading Ultra HD Market Data..."):
+with st.spinner("Loading Ultra HD Market Data & Multi-Timeframe RSI..."):
     df_live = fetch_live_stock_data(ticker_list)
 
 # -----------------------------------------------------------------------------
-# 6. TABLE RENDER ENGINE
+# 6. RENDER TABLE
 # -----------------------------------------------------------------------------
 if not df_live.empty:
     html_table = (
@@ -501,8 +520,8 @@ if not df_live.empty:
             {ema_td(row['ema200'])}
         </tr>"""
 
-    html_table += "</tbody></table></div>"
+    html_table += "</tbody>addClass='scanner-table'</table></div>"
     st.markdown(html_table, unsafe_allow_html=True)
 
 else:
-    st.error("No data fetched. Please check ticker list.")
+    st.error("No data fetched. Please check your ticker list.")
