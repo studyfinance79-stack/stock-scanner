@@ -3,6 +3,7 @@ import json
 import os
 import numpy as np
 import pandas as pd
+import requests
 import streamlit as st
 import yfinance as yf
 
@@ -63,18 +64,17 @@ def save_tickers(ticker_list):
         st.error(f"Failed to save stock list: {e}")
 
 
-# Initialize session state from saved file
 if "ticker_list" not in st.session_state:
     st.session_state.ticker_list = load_saved_tickers()
 
 # -----------------------------------------------------------------------------
-# 3. AUTO-REFRESH CONTROLLER
+# 3. AUTO-REFRESH & TELEGRAM ALERT CONFIGURATION
 # -----------------------------------------------------------------------------
 st.sidebar.markdown("### 🔄 Auto-Refresh Data")
 refresh_option = st.sidebar.selectbox(
     "Select Refresh Rate",
     options=["Off", "30 Seconds", "1 Minute", "3 Minutes", "5 Minutes"],
-    index=2,  # Defaults to 1 Minute
+    index=2,
 )
 
 refresh_map = {
@@ -93,6 +93,27 @@ if refresh_option != "Off":
         st.sidebar.warning(
             "Installing auto-refresh package... Please refresh page in 1 minute."
         )
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 📱 Telegram Alerts (WEAK / SELL Only)")
+enable_telegram = st.sidebar.checkbox("Enable Telegram Notifications", value=False)
+telegram_token = st.sidebar.text_input(
+    "Bot Token", type="password", help="Enter Bot Father Token"
+)
+telegram_chat_id = st.sidebar.text_input("Chat ID", help="Enter Target Chat ID")
+
+
+def send_telegram_alert(bot_token, chat_id, text):
+    """Sends Telegram message strictly for Bearish / Sell triggers."""
+    if not bot_token or not chat_id:
+        return False
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+    try:
+        resp = requests.post(url, json=payload, timeout=5)
+        return resp.status_code == 200
+    except Exception:
+        return False
 
 
 # -----------------------------------------------------------------------------
@@ -134,7 +155,7 @@ def get_base64_image(target_name):
 
 
 # -----------------------------------------------------------------------------
-# 5. SIDEBAR THEME & LIVE CUSTOM IMAGE UPLOADER
+# 5. SIDEBAR THEME & STYLING
 # -----------------------------------------------------------------------------
 THEMES = {
     "Bodhi Leaf Luxe": {
@@ -279,6 +300,7 @@ st.markdown(
     .badge-green {{ background-color: rgba(16, 185, 129, 0.25); color: #34d399; border: 1px solid #10b981; }}
     .badge-purple {{ background-color: rgba(168, 85, 247, 0.25); color: #c084fc; border: 1px solid #a855f7; }}
     .badge-red {{ background-color: rgba(239, 68, 68, 0.25); color: #fca5a5; border: 1px solid #ef4444; }}
+    .badge-darkred {{ background-color: rgba(153, 27, 27, 0.6); color: #fecaca; border: 1px solid #dc2626; font-weight: 900; }}
     
     .cell-val {{ font-weight: 700; color: #f8fafc; }}
     .stock-link {{ color: {theme['accent']} !important; font-weight: 800; text-decoration: none; }}
@@ -289,7 +311,7 @@ st.markdown(
 
 
 # -----------------------------------------------------------------------------
-# 6. TECHNICAL INDICATOR CALCULATOR
+# 6. TECHNICAL INDICATOR CALCULATOR (SUPERTREND 10,2 & STRICT BEARISH RULES)
 # -----------------------------------------------------------------------------
 def calculate_rsi(series, period=14):
     delta = series.diff()
@@ -324,6 +346,57 @@ def calculate_adx(df, period=14):
     return dx.rolling(period).mean()
 
 
+def calculate_supertrend(df, period=10, multiplier=2):
+    """Calculates exact ATR-based SuperTrend (10, 2)."""
+    df = df.copy()
+    high, low, close = df["High"], df["Low"], df["Close"]
+
+    tr1 = high - low
+    tr2 = (high - close.shift(1)).abs()
+    tr3 = (low - close.shift(1)).abs()
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    atr = tr.rolling(period).mean()
+
+    hl2 = (high + low) / 2
+    basic_upper = hl2 + (multiplier * atr)
+    basic_lower = hl2 - (multiplier * atr)
+
+    final_upper = pd.Series(0.0, index=df.index)
+    final_lower = pd.Series(0.0, index=df.index)
+    st_dir = pd.Series(True, index=df.index)
+    supertrend = pd.Series(0.0, index=df.index)
+
+    for i in range(1, len(df)):
+        if (
+            basic_upper.iloc[i] < final_upper.iloc[i - 1]
+            or close.iloc[i - 1] > final_upper.iloc[i - 1]
+        ):
+            final_upper.iloc[i] = basic_upper.iloc[i]
+        else:
+            final_upper.iloc[i] = final_upper.iloc[i - 1]
+
+        if (
+            basic_lower.iloc[i] > final_lower.iloc[i - 1]
+            or close.iloc[i - 1] < final_lower.iloc[i - 1]
+        ):
+            final_lower.iloc[i] = basic_lower.iloc[i]
+        else:
+            final_lower.iloc[i] = final_lower.iloc[i - 1]
+
+        if st_dir.iloc[i - 1] and close.iloc[i] < final_lower.iloc[i]:
+            st_dir.iloc[i] = False
+        elif not st_dir.iloc[i - 1] and close.iloc[i] > final_upper.iloc[i]:
+            st_dir.iloc[i] = True
+        else:
+            st_dir.iloc[i] = st_dir.iloc[i - 1]
+
+        supertrend.iloc[i] = (
+            final_lower.iloc[i] if st_dir.iloc[i] else final_upper.iloc[i]
+        )
+
+    return supertrend.iloc[-1], st_dir.iloc[-1]
+
+
 @st.cache_data(ttl=60)
 def fetch_live_stock_data(tickers):
     results = []
@@ -335,7 +408,7 @@ def fetch_live_stock_data(tickers):
                 else raw_symbol.strip().upper()
             )
             stock = yf.Ticker(symbol)
-            df = stock.history(period="5y")
+            df = stock.history(period="2y")
             if df.empty or len(df) < 50:
                 continue
 
@@ -367,22 +440,33 @@ def fetch_live_stock_data(tickers):
             )
 
             adx = calculate_adx(df, 14).iloc[-1]
-            st_val = ema20 * 0.95
-            is_bullish_st = cp > st_val
+            st_val, is_bullish_st = calculate_supertrend(
+                df, period=10, multiplier=2
+            )
 
+            # Ultra Bearish Condition: Price below ALL EMAs (20, 50, 100, 200)
+            is_ultra_bearish = (
+                (cp < ema20) and (cp < ema50) and (cp < ema100) and (cp < ema200)
+            )
+
+            # Scoring based strictly on user parameters
             score = 0.0
-            if cp > ema20:
-                score += 2.0
-            if cp > ema50:
-                score += 1.5
-            if cp > ema200:
-                score += 1.5
-            if rsi_daily >= 52:
-                score += 1.5
             if is_bullish_st:
                 score += 1.5
-            if vol_spike > 20:
+            if cp > ema20:
                 score += 1.0
+            if cp > ema50:
+                score += 1.0
+            if cp > ema100:
+                score += 1.0
+            if cp > ema200:
+                score += 1.0
+            if rsi_daily >= 52:
+                score += 1.5
+            if rsi_weekly >= 60:
+                score += 1.5
+            if rsi_monthly >= 60:
+                score += 1.5
 
             results.append({
                 "symbol": clean_symbol,
@@ -400,7 +484,8 @@ def fetch_live_stock_data(tickers):
                 "ema50": ema50,
                 "ema100": ema100,
                 "ema200": ema200,
-                "ai_score": min(score, 9.0),
+                "ai_score": score,
+                "is_ultra_bearish": is_ultra_bearish,
             })
         except Exception:
             continue
@@ -416,7 +501,7 @@ st.markdown(
 )
 st.markdown(
     '<div class="app-subtitle">Real-time indicators with direct TradingView'
-    " daily chart linkage and multi-timeframe analysis.</div>",
+    " chart linkage and custom multi-timeframe rules.</div>",
     unsafe_allow_html=True,
 )
 
@@ -425,7 +510,7 @@ tab_scanner, tab_manage, tab_background = st.tabs(
 )
 
 # -----------------------------------------------------------------------------
-# TAB 1: SCANNER TABLE
+# TAB 1: SCANNER TABLE & TELEGRAM ALERT ENGINE
 # -----------------------------------------------------------------------------
 with tab_scanner:
     with st.spinner("Loading Market Data..."):
@@ -439,11 +524,11 @@ with tab_scanner:
             "PRICE",
             "AI SIGNAL",
             "AVG. VOL & SPIKE",
-            "SUPERTREND (10,3)",
+            "SUPERTREND (10,2)",
             "ADX (14)",
-            "DAILY RSI",
-            "WEEKLY RSI",
-            "MONTHLY RSI",
+            "DAILY RSI (>52)",
+            "WEEKLY RSI (>60)",
+            "MONTHLY RSI (>60)",
             "> EMA 20",
             "> EMA 50",
             "> EMA 100",
@@ -456,7 +541,9 @@ with tab_scanner:
                 else ""
             )
             html_table += f"<th {align_css}>{h}</th>"
-        html_table += "</tr></thead><tbody>"
+        html_table += "</tr>互</thead><tbody>"
+
+        bearish_alerts_queue = []
 
         for idx, row in df_live.iterrows():
             cp_str = f"₹{row['price']:,.2f}"
@@ -465,16 +552,52 @@ with tab_scanner:
                 if row["change"] >= 0
                 else '<span class="badge badge-red">DOWN</span>'
             )
-            score_val = row["ai_score"]
-            score_badge = (
-                '<span class="badge badge-purple">STRONG BUY</span>'
-                if score_val >= 7.5
-                else (
-                    '<span class="badge badge-green">BUY</span>'
-                    if score_val >= 5.5
-                    else '<span class="badge badge-red">WEAK</span>'
+
+            # Signal Classification
+            if row["is_ultra_bearish"]:
+                score_badge = (
+                    '<span class="badge badge-darkred">ULTRA BEARISH</span>'
                 )
-            )
+                signal_type = "ULTRA BEARISH / STRONG SELL"
+            elif row["ai_score"] < 4.0 or row["price"] < row["ema20"]:
+                score_badge = '<span class="badge badge-red">WEAK / SELL</span>'
+                signal_type = "WEAK / SELL"
+            elif row["ai_score"] >= 7.5:
+                score_badge = (
+                    '<span class="badge badge-purple">STRONG BUY</span>'
+                )
+                signal_type = "STRONG BUY"
+            else:
+                score_badge = '<span class="badge badge-green">BUY</span>'
+                signal_type = "BUY"
+
+            # Telegram Alert Filtering: ONLY Queue WEAK / SELL & ULTRA BEARISH Signals
+            if enable_telegram and signal_type in [
+                "WEAK / SELL",
+                "ULTRA BEARISH / STRONG SELL",
+            ]:
+                reasons = []
+                if row["price"] < row["ema20"]:
+                    reasons.append("Price < EMA 20")
+                if row["is_ultra_bearish"]:
+                    reasons.append("Price below ALL EMAs (20,50,100,200)")
+                if row["rsi_d"] < 52:
+                    reasons.append(f"Daily RSI {row['rsi_d']:.1f} < 52")
+                if row["rsi_w"] < 60:
+                    reasons.append(f"Weekly RSI {row['rsi_w']:.1f} < 60")
+                if row["rsi_m"] < 60:
+                    reasons.append(f"Monthly RSI {row['rsi_m']:.1f} < 60")
+                if not row["is_st_bullish"]:
+                    reasons.append("SuperTrend Bearish")
+
+                alert_text = (
+                    f"⚠️ <b>BEARISH ALERT: {row['symbol']}</b>\n"
+                    f"• <b>Signal:</b> {signal_type}\n"
+                    f"• <b>Price:</b> ₹{row['price']:,.2f}\n"
+                    f"• <b>Triggers:</b> {', '.join(reasons)}"
+                )
+                bearish_alerts_queue.append(alert_text)
+
             vol_lakhs = f"{row['vol'] / 100000:.2f}L"
             vol_badge = (
                 '<span class="badge badge-purple">SPIKE</span>'
@@ -497,20 +620,22 @@ with tab_scanner:
                 if row["adx"] >= 25
                 else '<span class="badge badge-red">WEAK</span>'
             )
+
+            # Strict Red/Green Badges for RSIs
             rsi_d_badge = (
                 '<span class="badge badge-green">BULLISH</span>'
                 if row["rsi_d"] >= 52
-                else '<span class="badge badge-red">WEAK</span>'
+                else '<span class="badge badge-red">BEARISH</span>'
             )
             rsi_w_badge = (
                 '<span class="badge badge-green">BULLISH</span>'
                 if row["rsi_w"] >= 60
-                else '<span class="badge badge-red">WEAK</span>'
+                else '<span class="badge badge-red">BEARISH</span>'
             )
             rsi_m_badge = (
                 '<span class="badge badge-green">BULLISH</span>'
                 if row["rsi_m"] >= 60
-                else '<span class="badge badge-red">WEAK</span>'
+                else '<span class="badge badge-red">BEARISH</span>'
             )
 
             tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{row['symbol']}&interval=D"
@@ -531,7 +656,7 @@ with tab_scanner:
                 <td style="color: #64748b; font-weight: bold;">{idx+1}</td>
                 {stock_cell}
                 <td><div class="cell-val">{cp_str}</div>{chg_badge}</td>
-                <td><div class="cell-val">{score_val:.1f} / 9.0</div>{score_badge}</td>
+                <td><div class="cell-val">{row['ai_score']:.1f} / 10.0</div>{score_badge}</td>
                 <td><div class="cell-val">{vol_lakhs}</div>{vol_badge}</td>
                 <td><div class="cell-val">{st_str}</div>{st_badge}</td>
                 <td><div class="cell-val">{adx_str}</div>{adx_badge}</td>
@@ -546,6 +671,11 @@ with tab_scanner:
 
         html_table += "</tbody></table></div>"
         st.markdown(html_table, unsafe_allow_html=True)
+
+        # Dispatch Telegram Alerts if configured
+        if enable_telegram and telegram_token and telegram_chat_id:
+            for alert_msg in bearish_alerts_queue:
+                send_telegram_alert(telegram_token, telegram_chat_id, alert_msg)
 
 # -----------------------------------------------------------------------------
 # TAB 2: ADD / REMOVE / UPDATE STOCKS WITH PERMANENT SAVING
@@ -565,7 +695,7 @@ with tab_manage:
                 clean_t = new_ticker.strip().upper().replace(".NS", "")
                 if clean_t not in st.session_state.ticker_list:
                     st.session_state.ticker_list.append(clean_t)
-                    save_tickers(st.session_state.ticker_list)  # Save to file
+                    save_tickers(st.session_state.ticker_list)
                     st.cache_data.clear()
                     st.success(f"Added and saved {clean_t} permanently!")
                     st.rerun()
@@ -578,7 +708,7 @@ with tab_manage:
         if st.button("Remove Selected Ticker"):
             if to_remove in st.session_state.ticker_list:
                 st.session_state.ticker_list.remove(to_remove)
-                save_tickers(st.session_state.ticker_list)  # Save to file
+                save_tickers(st.session_state.ticker_list)
                 st.cache_data.clear()
                 st.success(f"Removed {to_remove} permanently!")
                 st.rerun()
@@ -597,7 +727,7 @@ with tab_manage:
             if t.strip()
         ]
         st.session_state.ticker_list = newList
-        save_tickers(st.session_state.ticker_list)  # Save to file
+        save_tickers(st.session_state.ticker_list)
         st.cache_data.clear()
         st.success("Ticker list updated and saved permanently!")
         st.rerun()
