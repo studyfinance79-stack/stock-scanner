@@ -7,7 +7,7 @@ import requests
 import streamlit as st
 import yfinance as yf
 
-# Safe import for auto-refresh library
+# Safe import for auto-refresh
 try:
     from streamlit_autorefresh import st_autorefresh
 
@@ -26,10 +26,9 @@ st.set_page_config(
 )
 
 # -----------------------------------------------------------------------------
-# 2. PERSISTENT TICKER STORAGE (JSON FILE)
+# 2. PERSISTENT TICKER STORAGE
 # -----------------------------------------------------------------------------
 TICKERS_FILE = "tickers.json"
-
 DEFAULT_TICKERS = [
     "AEROFLEX",
     "BLSE",
@@ -68,7 +67,43 @@ if "ticker_list" not in st.session_state:
     st.session_state.ticker_list = load_saved_tickers()
 
 # -----------------------------------------------------------------------------
-# 3. AUTO-REFRESH & TELEGRAM ALERT CONFIGURATION
+# 3. BACKGROUND IMAGE SCANNER & ENGINE
+# -----------------------------------------------------------------------------
+
+
+def get_all_repo_images():
+    """Scans repository folder for all background image files."""
+    valid_exts = [".jpg", ".jpeg", ".png", ".webp"]
+    images = []
+    try:
+        for file in os.listdir("."):
+            if any(file.lower().endswith(ext) for ext in valid_exts):
+                images.append(file)
+    except Exception:
+        pass
+    return sorted(images)
+
+
+def file_to_base64(filepath):
+    """Converts a local file into a base64 string for CSS styling."""
+    try:
+        ext = os.path.splitext(filepath)[1].lower().replace(".", "")
+        mime = "image/jpeg" if ext in ["jpg", "jpeg"] else f"image/{ext}"
+        with open(filepath, "rb") as f:
+            encoded = base64.b64encode(f.read()).decode("utf-8")
+        return encoded, mime
+    except Exception:
+        return None, None
+
+
+# Session State for Custom Background
+if "uploaded_bg_b64" not in st.session_state:
+    st.session_state.uploaded_bg_b64 = None
+if "uploaded_bg_mime" not in st.session_state:
+    st.session_state.uploaded_bg_mime = None
+
+# -----------------------------------------------------------------------------
+# 4. SIDEBAR: REFRESH, TELEGRAM & THEMES
 # -----------------------------------------------------------------------------
 st.sidebar.markdown("### 🔄 Auto-Refresh Data")
 refresh_option = st.sidebar.selectbox(
@@ -76,7 +111,6 @@ refresh_option = st.sidebar.selectbox(
     options=["Off", "30 Seconds", "1 Minute", "3 Minutes", "5 Minutes"],
     index=2,
 )
-
 refresh_map = {
     "30 Seconds": 30000,
     "1 Minute": 60000,
@@ -84,13 +118,8 @@ refresh_map = {
     "5 Minutes": 300000,
 }
 
-if refresh_option != "Off":
-    if HAS_AUTOREFRESH:
-        st_autorefresh(
-            interval=refresh_map[refresh_option], key="data_autorefresh"
-        )
-    else:
-        st.sidebar.warning("Installing auto-refresh package...")
+if refresh_option != "Off" and HAS_AUTOREFRESH:
+    st_autorefresh(interval=refresh_map[refresh_option], key="data_autorefresh")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 📱 Telegram Alerts (WEAK / SELL Only)")
@@ -98,136 +127,91 @@ enable_telegram = st.sidebar.checkbox(
     "Enable Telegram Notifications", value=True
 )
 
-# Fetch from Secrets or Sidebar Inputs
 default_token = st.secrets.get("TELEGRAM_BOT_TOKEN", "")
 default_chat_id = st.secrets.get("TELEGRAM_CHAT_ID", "")
 
 telegram_token = st.sidebar.text_input(
-    "Bot Token",
-    value=default_token,
-    type="password",
-    help="Enter Bot Father Token or set in secrets.toml",
+    "Bot Token", value=default_token, type="password"
 )
-telegram_chat_id = st.sidebar.text_input(
-    "Chat ID", value=default_chat_id, help="Enter Target Chat ID"
-)
+telegram_chat_id = st.sidebar.text_input("Chat ID", value=default_chat_id)
 
 
 def send_telegram_alert(bot_token, chat_id, text):
-    """Sends HTML formatted Telegram messages strictly for WEAK / SELL triggers."""
+    """Sends HTML formatted Telegram messages and logs errors."""
     if not bot_token or not chat_id:
-        return False
+        return False, "Bot Token or Chat ID is missing!"
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
     try:
         resp = requests.post(url, json=payload, timeout=5)
-        return resp.status_code == 200
-    except Exception:
-        return False
+        res_json = resp.json()
+        if resp.status_code == 200 and res_json.get("ok"):
+            return True, "Success"
+        else:
+            return (
+                False,
+                res_json.get("description", f"HTTP Error {resp.status_code}"),
+            )
+    except Exception as e:
+        return False, str(e)
 
 
-# -----------------------------------------------------------------------------
-# 4. HELPER TO LOAD PRESET REPOSITORY IMAGES
-# -----------------------------------------------------------------------------
-def get_base64_image(target_name):
-    if not target_name:
-        return None, None
+# TEST TELEGRAM BUTTON
+if st.sidebar.button("🧪 Send Test Telegram Alert"):
+    ok, err_msg = send_telegram_alert(
+        telegram_token,
+        telegram_chat_id,
+        "<b>🧪 Test Alert from Technical Stock Scanner!</b>\nTelegram integration is working properly.",
+    )
+    if ok:
+        st.sidebar.success("✅ Test Alert Sent Successfully!")
+    else:
+        st.sidebar.error(f"❌ Telegram Error: {err_msg}")
 
-    target_clean = (
-        os.path.splitext(target_name)[0].lower().replace(" ", "").replace("_", "")
+if st.sidebar.button("🔄 Reset Telegram Alert Logs"):
+    for k in list(st.session_state.keys()):
+        if k.startswith("alert_sent_"):
+            del st.session_state[k]
+    st.sidebar.success("Alert memory cleared!")
+
+# SIDEBAR BACKGROUND SELECTOR
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 🖼️ Background & Wallpaper")
+
+repo_images = get_all_repo_images()
+selected_repo_image = None
+
+if repo_images:
+    selected_repo_image = st.sidebar.selectbox(
+        "Choose Uploaded Image from Repository",
+        options=["(None / Custom Upload)"] + repo_images,
+        index=1 if len(repo_images) > 0 else 0,
     )
 
-    try:
-        for file in os.listdir("."):
-            file_clean = (
-                os.path.splitext(file)[0].lower().replace(" ", "").replace("_", "")
-            )
-            ext = os.path.splitext(file)[1].lower()
-
-            if file_clean == target_clean and ext in [
-                ".jpg",
-                ".jpeg",
-                ".png",
-                ".webp",
-            ]:
-                mime_type = (
-                    "image/jpeg"
-                    if ext in [".jpg", ".jpeg"]
-                    else f"image/{ext.replace('.', '')}"
-                )
-                with open(file, "rb") as f:
-                    encoded = base64.b64encode(f.read()).decode("utf-8")
-                return encoded, mime_type
-    except Exception:
-        pass
-
-    return None, None
-
-
-# -----------------------------------------------------------------------------
-# 5. SIDEBAR THEME & ULTRA HD STYLING
-# -----------------------------------------------------------------------------
-THEMES = {
-    "Bodhi Leaf Luxe": {
-        "image_key": "bodhi leaf",
-        "card_bg": "rgba(11, 20, 38, 0.85)",
-        "header_bg": "rgba(17, 34, 64, 0.95)",
-        "accent": "#38bdf8",
-        "border": "#0284c7",
-    },
-    "Golden Honeycomb": {
-        "image_key": "honey comb golden",
-        "card_bg": "rgba(18, 14, 5, 0.85)",
-        "header_bg": "rgba(38, 28, 8, 0.95)",
-        "accent": "#f59e0b",
-        "border": "#d97706",
-    },
-    "Royal Blue Honeycomb": {
-        "image_key": "honey comb royal blue",
-        "card_bg": "rgba(6, 18, 38, 0.85)",
-        "header_bg": "rgba(12, 30, 62, 0.95)",
-        "accent": "#38bdf8",
-        "border": "#1d4ed8",
-    },
-    "Rhombus Geometric": {
-        "image_key": "rohmbus pattern",
-        "card_bg": "rgba(10, 15, 26, 0.85)",
-        "header_bg": "rgba(20, 30, 50, 0.95)",
-        "accent": "#38bdf8",
-        "border": "#0369a1",
-    },
-    "Glowing Ficus Leaf": {
-        "image_key": "glowing ficus religosa leaf",
-        "card_bg": "rgba(8, 14, 28, 0.85)",
-        "header_bg": "rgba(18, 30, 56, 0.95)",
-        "accent": "#60a5fa",
-        "border": "#2563eb",
-    },
-    "Copper Vertical Strips": {
-        "image_key": "copper strips vertical",
-        "card_bg": "rgba(18, 12, 10, 0.85)",
-        "header_bg": "rgba(38, 22, 16, 0.95)",
-        "accent": "#f97316",
-        "border": "#c2410c",
-    },
-}
-
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 🎨 Background Styling")
-custom_bg_file = st.sidebar.file_uploader(
-    "Upload Background Image", type=["jpg", "jpeg", "png", "webp"]
+sidebar_bg_file = st.sidebar.file_uploader(
+    "Upload New Background Image",
+    type=["jpg", "jpeg", "png", "webp"],
+    key="sidebar_uploader",
 )
-selected_theme_name = st.sidebar.selectbox(
-    "Choose Preset Palette", list(THEMES.keys()), index=0
-)
-theme = THEMES[selected_theme_name]
 
-if custom_bg_file is not None:
-    bytes_data = custom_bg_file.read()
-    b64_str = base64.b64encode(bytes_data).decode("utf-8")
-    mime_type = custom_bg_file.type
-else:
-    b64_str, mime_type = get_base64_image(theme["image_key"])
+# Determine Background Image to Apply
+b64_str, mime_type = None, None
+
+if sidebar_bg_file is not None:
+    bytes_data = sidebar_bg_file.read()
+    st.session_state.uploaded_bg_b64 = base64.b64encode(bytes_data).decode(
+        "utf-8"
+    )
+    ext = sidebar_bg_file.name.split(".")[-1].lower()
+    st.session_state.uploaded_bg_mime = (
+        "image/jpeg" if ext in ["jpg", "jpeg"] else f"image/{ext}"
+    )
+
+if st.session_state.uploaded_bg_b64:
+    b64_str = st.session_state.uploaded_bg_b64
+    mime_type = st.session_state.uploaded_bg_mime
+elif selected_repo_image and selected_repo_image != "(None / Custom Upload)":
+    b64_str, mime_type = file_to_base64(selected_repo_image)
 
 if b64_str and mime_type:
     bg_style = f"""
@@ -240,6 +224,7 @@ if b64_str and mime_type:
 else:
     bg_style = "background-color: #0b1426 !important;"
 
+# ULTRA HD CSS STYLING
 st.markdown(
     f"""
 <style>
@@ -247,59 +232,51 @@ st.markdown(
         {bg_style}
         background-color: transparent !important;
     }}
-
     .stSidebar {{
-        background-color: {theme['card_bg']} !important;
-        border-right: 2px solid {theme['border']} !important;
+        background-color: rgba(11, 20, 38, 0.88) !important;
+        border-right: 2px solid #0284c7 !important;
         backdrop-filter: blur(12px);
     }}
-
     .app-header {{
         font-size: 30px;
         font-weight: 800;
-        color: {theme['accent']};
+        color: #38bdf8;
         margin-bottom: 4px;
         text-shadow: 0 2px 10px rgba(0,0,0,0.8);
     }}
-    
     .app-subtitle {{
         font-size: 13px;
         color: #cbd5e1;
         margin-bottom: 18px;
     }}
-
     .table-container {{
         width: 100%;
         overflow-x: auto;
-        border: 2px solid {theme['border']};
+        border: 2px solid #0284c7;
         border-radius: 10px;
-        background-color: {theme['card_bg']};
+        background-color: rgba(11, 20, 38, 0.85);
         backdrop-filter: blur(14px);
         box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
     }}
-    
     .scanner-table {{
         width: 100%;
         border-collapse: collapse;
         font-size: 12.5px;
         text-align: center;
     }}
-    
     .scanner-table th {{
-        background-color: {theme['header_bg']};
-        color: {theme['accent']};
+        background-color: rgba(17, 34, 64, 0.95);
+        color: #38bdf8;
         font-weight: 800;
         padding: 12px 8px;
-        border: 2px solid {theme['border']} !important;
+        border: 2px solid #0284c7 !important;
         text-transform: uppercase;
     }}
-    
     .scanner-table td {{
         padding: 10px 8px;
-        border: 2px solid {theme['border']} !important;
+        border: 2px solid #0284c7 !important;
         background-color: rgba(11, 20, 38, 0.60);
     }}
-
     .badge {{
         display: inline-block;
         padding: 3px 7px;
@@ -311,9 +288,8 @@ st.markdown(
     .badge-purple {{ background-color: rgba(168, 85, 247, 0.25); color: #c084fc; border: 1px solid #a855f7; }}
     .badge-red {{ background-color: rgba(239, 68, 68, 0.25); color: #fca5a5; border: 1px solid #ef4444; }}
     .badge-darkred {{ background-color: rgba(153, 27, 27, 0.7); color: #fecaca; border: 1px solid #dc2626; font-weight: 900; }}
-    
     .cell-val {{ font-weight: 700; color: #f8fafc; }}
-    .stock-link {{ color: {theme['accent']} !important; font-weight: 800; text-decoration: none; }}
+    .stock-link {{ color: #38bdf8 !important; font-weight: 800; text-decoration: none; }}
 </style>
 """,
     unsafe_allow_html=True,
@@ -321,7 +297,7 @@ st.markdown(
 
 
 # -----------------------------------------------------------------------------
-# 6. TECHNICAL INDICATORS & SUPERTREND (WITHOUT NaN)
+# 5. TECHNICAL INDICATORS
 # -----------------------------------------------------------------------------
 def calculate_rsi(series, period=14):
     delta = series.diff()
@@ -341,20 +317,22 @@ def calculate_rsi(series, period=14):
 
 def calculate_adx(df, period=14):
     high, low, close = df["High"], df["Low"], df["Close"]
-    plus_dm = high.diff()
-    minus_dm = low.diff().abs()
-
     plus_dm = np.where(
-        (plus_dm > minus_dm) & (plus_dm > 0), plus_dm, 0.0
+        (high.diff() > low.diff().abs()) & (high.diff() > 0), high.diff(), 0.0
     )
     minus_dm = np.where(
-        (minus_dm > plus_dm) & (minus_dm > 0), minus_dm, 0.0
+        (low.diff().abs() > high.diff()) & (low.diff().abs() > 0),
+        low.diff().abs(),
+        0.0,
     )
-
-    tr1 = high - low
-    tr2 = (high - close.shift(1)).abs()
-    tr3 = (low - close.shift(1)).abs()
-    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    tr = pd.concat(
+        [
+            high - low,
+            (high - close.shift(1)).abs(),
+            (low - close.shift(1)).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
     atr = tr.ewm(alpha=1 / period, adjust=False).mean()
 
     plus_di = (
@@ -379,18 +357,19 @@ def calculate_adx(df, period=14):
     dx = (
         abs(plus_di - minus_di) / (plus_di + minus_di + 1e-9)
     ) * 100
-    adx = dx.ewm(alpha=1 / period, adjust=False).mean()
-    return adx.iloc[-1]
+    return dx.ewm(alpha=1 / period, adjust=False).mean().iloc[-1]
 
 
 def calculate_supertrend(df, period=10, multiplier=2):
-    df = df.copy()
     high, low, close = df["High"], df["Low"], df["Close"]
-
-    tr1 = high - low
-    tr2 = (high - close.shift(1)).abs()
-    tr3 = (low - close.shift(1)).abs()
-    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    tr = pd.concat(
+        [
+            high - low,
+            (high - close.shift(1)).abs(),
+            (low - close.shift(1)).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
     atr = tr.ewm(alpha=1 / period, adjust=False).mean()
 
     hl2 = (high + low) / 2
@@ -442,8 +421,7 @@ def fetch_live_stock_data(tickers):
                 if not raw_symbol.endswith(".NS")
                 else raw_symbol.strip().upper()
             )
-            stock = yf.Ticker(symbol)
-            df = stock.history(period="2y")
+            df = yf.Ticker(symbol).history(period="2y")
             df = df.dropna(
                 subset=["Open", "High", "Low", "Close", "Volume"]
             )
@@ -451,8 +429,7 @@ def fetch_live_stock_data(tickers):
             if df.empty or len(df) < 50:
                 continue
 
-            clean_symbol = symbol.replace(".NS", "").replace("^", "")
-
+            clean_symbol = symbol.replace(".NS", "")
             cp = df["Close"].iloc[-1]
             prev_cp = df["Close"].iloc[-2]
             price_change = ((cp - prev_cp) / prev_cp) * 100
@@ -514,15 +491,15 @@ def fetch_live_stock_data(tickers):
 
 
 # -----------------------------------------------------------------------------
-# 7. APP HEADER & MAIN TABS
+# 6. MAIN UI & TABS
 # -----------------------------------------------------------------------------
 st.markdown(
     '<div class="app-header">📈 Technical Stock Scanner</div>',
     unsafe_allow_html=True,
 )
 st.markdown(
-    '<div class="app-subtitle">Real-time indicators with custom 9-point Weakness'
-    " scoring system and direct Telegram alerts.</div>",
+    '<div class="app-subtitle">Real-time indicators with 9-point Weakness'
+    " scoring and instant Telegram alerts.</div>",
     unsafe_allow_html=True,
 )
 
@@ -530,11 +507,9 @@ tab_scanner, tab_manage, tab_background = st.tabs(
     ["📊 Stock Scanner", "⚙️ Add / Remove Stocks", "🖼️ Background Settings"]
 )
 
-# -----------------------------------------------------------------------------
-# TAB 1: SCANNER TABLE & TELEGRAM WEAKNESS ALERT ENGINE
-# -----------------------------------------------------------------------------
+# TAB 1: SCANNER & TELEGRAM ALERTS
 with tab_scanner:
-    with st.spinner("Loading Market Data..."):
+    with st.spinner("Fetching Live Market Indicators..."):
         df_live = fetch_live_stock_data(st.session_state.ticker_list)
 
     if not df_live.empty:
@@ -572,58 +547,39 @@ with tab_scanner:
                 else '<span class="badge badge-red">DOWN</span>'
             )
 
-            # ==========================================
-            # YOUR EXACT 9-POINT WEAKNESS SCORING MODEL
-            # ==========================================
+            # 9-POINT WEAKNESS SCORING MODEL
             weakness_score = 0.0
             reasons = []
 
-            # 1st Priority: Monthly RSI < 60 (1.5 pts)
             if row["rsi_m"] < 60:
                 weakness_score += 1.5
                 reasons.append(f"• Monthly RSI: {row['rsi_m']:.1f} (< 60)")
-
-            # 2nd Priority: Weekly RSI < 60 (1.5 pts)
             if row["rsi_w"] < 60:
                 weakness_score += 1.5
                 reasons.append(f"• Weekly RSI: {row['rsi_w']:.1f} (< 60)")
-
-            # 3rd Priority: Daily RSI < 52 (1.0 pt)
             if row["rsi_d"] < 52:
                 weakness_score += 1.0
                 reasons.append(f"• Daily RSI: {row['rsi_d']:.1f} (< 52)")
-
-            # 4th Priority: Price < EMA 20 (1.0 pt)
             if row["price"] < row["ema20"]:
                 weakness_score += 1.0
                 reasons.append(f"• Price < Daily EMA 20 (₹{row['ema20']:.1f})")
-
-            # 5th Priority: Supertrend Bearish (1.5 pts)
             if not row["is_st_bullish"]:
                 weakness_score += 1.5
                 reasons.append("• Supertrend: BEARISH")
-
-            # 6th Priority: ADX < 20 (0.5 pt)
             if row["adx"] < 20:
                 weakness_score += 0.5
                 reasons.append(f"• ADX: {row['adx']:.1f} (< 20)")
-
-            # 7th Priority: Price < EMA 50 (1.0 pt)
             if row["price"] < row["ema50"]:
                 weakness_score += 1.0
                 reasons.append(f"• Price < Daily EMA 50 (₹{row['ema50']:.1f})")
-
-            # 8th Priority: Price < EMA 100 (1.0 pt)
             if row["price"] < row["ema100"]:
                 weakness_score += 1.0
                 reasons.append(f"• Price < Daily EMA 100 (₹{row['ema100']:.1f})")
-
-            # 9th Priority: Price < EMA 200 (1.0 pt)
             if row["price"] < row["ema200"]:
                 weakness_score += 1.0
                 reasons.append(f"• Price < Daily EMA 200 (₹{row['ema200']:.1f})")
 
-            # Signal Classification
+            # Classification
             if weakness_score >= 7.5:
                 score_badge = (
                     '<span class="badge badge-darkred">ULTRA BEARISH / STRONG'
@@ -639,16 +595,14 @@ with tab_scanner:
                 )
                 signal_title = "🟢 BULLISH / NEUTRAL"
 
-            # ==========================================
-            # TELEGRAM ALERT TRIGGER (WEAK/SELL ONLY)
-            # ==========================================
+            # TRIGGER TELEGRAM ALERT FOR WEAK / SELL
             if (
                 enable_telegram
                 and telegram_token
                 and telegram_chat_id
                 and weakness_score >= 5.0
             ):
-                alert_key = f"alert_sent_{row['symbol']}_{weakness_score}"
+                alert_key = f"alert_sent_{row['symbol']}_{weakness_score:.1f}"
                 if alert_key not in st.session_state:
                     alert_msg = (
                         f"<b>{signal_title}: {row['symbol']}</b>\n"
@@ -657,10 +611,15 @@ with tab_scanner:
                         f"<b>Triggered Sell Criteria:</b>\n"
                         + "\n".join(reasons)
                     )
-                    if send_telegram_alert(
+                    ok, err = send_telegram_alert(
                         telegram_token, telegram_chat_id, alert_msg
-                    ):
+                    )
+                    if ok:
                         st.session_state[alert_key] = True
+                        st.toast(
+                            f"Telegram Alert sent for {row['symbol']}!",
+                            icon="📱",
+                        )
 
             vol_lakhs = f"{row['vol'] / 100000:.2f}L"
             vol_badge = (
@@ -678,14 +637,12 @@ with tab_scanner:
                 if row["is_st_bullish"]
                 else '<span class="badge badge-red">BEARISH</span>'
             )
-            adx_str = f"{row['adx']:.1f}"
             adx_badge = (
                 '<span class="badge badge-green">STRONG</span>'
                 if row["adx"] >= 25
                 else '<span class="badge badge-red">WEAK</span>'
             )
 
-            # Badge Colors for Weakness Focus
             rsi_d_badge = (
                 '<span class="badge badge-red">WEAK</span>'
                 if row["rsi_d"] < 52
@@ -723,7 +680,7 @@ with tab_scanner:
                 <td><div class="cell-val">{weakness_score:.1f} / 10.0</div>{score_badge}</td>
                 <td><div class="cell-val">{vol_lakhs}</div>{vol_badge}</td>
                 <td><div class="cell-val">{st_str}</div>{st_badge}</td>
-                <td><div class="cell-val">{adx_str}</div>{adx_badge}</td>
+                <td><div class="cell-val">{row['adx']:.1f}</div>{adx_badge}</td>
                 <td><div class="cell-val">{row['rsi_d']:.2f}</div>{rsi_d_badge}</td>
                 <td><div class="cell-val">{row['rsi_w']:.2f}</div>{rsi_w_badge}</td>
                 <td><div class="cell-val">{row['rsi_m']:.2f}</div>{rsi_m_badge}</td>
@@ -736,19 +693,13 @@ with tab_scanner:
         html_table += "</tbody></table></div>"
         st.markdown(html_table, unsafe_allow_html=True)
 
-# -----------------------------------------------------------------------------
-# TAB 2: ADD / REMOVE / UPDATE STOCKS WITH PERMANENT SAVING
-# -----------------------------------------------------------------------------
+# TAB 2: MANAGE STOCKS
 with tab_manage:
     st.subheader("Manage Stock Tickers")
-
     col_add, col_remove = st.columns(2)
-
     with col_add:
         st.markdown("#### ➕ Add New Stocks")
-        new_ticker = st.text_input(
-            "Enter Stock Ticker (e.g., SBIN, TCS, TATAMOTORS)"
-        )
+        new_ticker = st.text_input("Enter Stock Ticker (e.g., SBIN, TCS)")
         if st.button("Add Ticker"):
             if new_ticker:
                 clean_t = new_ticker.strip().upper().replace(".NS", "")
@@ -756,11 +707,11 @@ with tab_manage:
                     st.session_state.ticker_list.append(clean_t)
                     save_tickers(st.session_state.ticker_list)
                     st.cache_data.clear()
-                    st.success(f"Added and saved {clean_t} permanently!")
+                    st.success(f"Added {clean_t} permanently!")
                     st.rerun()
 
     with col_remove:
-        st.markdown("#### ❌ Remove Existing Stocks")
+        st.markdown("#### ❌ Remove Stocks")
         to_remove = st.selectbox(
             "Select Stock to Remove", st.session_state.ticker_list
         )
@@ -769,38 +720,45 @@ with tab_manage:
                 st.session_state.ticker_list.remove(to_remove)
                 save_tickers(st.session_state.ticker_list)
                 st.cache_data.clear()
-                st.success(f"Removed {to_remove} permanently!")
+                st.success(f"Removed {to_remove}!")
                 st.rerun()
 
-    st.markdown("---")
-    st.markdown("#### 📝 Bulk Update Ticker List")
-    bulk_input = st.text_area(
-        "Edit complete list of tickers (comma separated)",
-        value=", ".join(st.session_state.ticker_list),
-        height=100,
-    )
-    if st.button("Update Full Ticker List"):
-        newList = [
-            t.strip().upper().replace(".NS", "")
-            for t in bulk_input.split(",")
-            if t.strip()
-        ]
-        st.session_state.ticker_list = newList
-        save_tickers(st.session_state.ticker_list)
-        st.cache_data.clear()
-        st.success("Ticker list updated and saved permanently!")
-        st.rerun()
-
-# -----------------------------------------------------------------------------
-# TAB 3: BACKGROUND & THEME MANAGEMENT
-# -----------------------------------------------------------------------------
+# TAB 3: BACKGROUND SETTINGS
 with tab_background:
-    st.subheader("Upload Background & Set Card Themes")
-    st.info("Manage background wallpapers directly from here.")
-    up_file = st.file_uploader(
+    st.subheader("🖼️ Background Settings")
+
+    if repo_images:
+        st.markdown("#### Select background image detected in your repository:")
+        tab_bg_choice = st.selectbox(
+            "Choose Image",
+            options=["(Keep Current)"] + repo_images,
+            key="tab_bg_choice",
+        )
+        if (
+            st.button("Apply Selected Image")
+            and tab_bg_choice != "(Keep Current)"
+        ):
+            b64_str, mime_type = file_to_base64(tab_bg_choice)
+            st.session_state.uploaded_bg_b64 = b64_str
+            st.session_state.uploaded_bg_mime = mime_type
+            st.success(f"Applied {tab_bg_choice} as background!")
+            st.rerun()
+
+    st.markdown("---")
+    st.markdown("#### Upload a new custom wallpaper:")
+    tab_uploader = st.file_uploader(
         "Upload Custom Background (.jpg / .png)",
         type=["jpg", "jpeg", "png", "webp"],
-        key="main_tab_uploader",
+        key="tab_bg_file_uploader",
     )
-    if up_file:
-        st.success("Background uploaded! Your screen style will update.")
+    if tab_uploader:
+        bytes_data = tab_uploader.read()
+        st.session_state.uploaded_bg_b64 = base64.b64encode(bytes_data).decode(
+            "utf-8"
+        )
+        ext = tab_uploader.name.split(".")[-1].lower()
+        st.session_state.uploaded_bg_mime = (
+            "image/jpeg" if ext in ["jpg", "jpeg"] else f"image/{ext}"
+        )
+        st.success("Uploaded and applied custom background!")
+        st.rerun()
