@@ -1,3 +1,4 @@
+import base64
 import os
 import numpy as np
 import pandas as pd
@@ -14,8 +15,20 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+
 # -----------------------------------------------------------------------------
-# 2. IMAGE THEMES & ULTRA HD HIGH-CONTRAST ENGINE
+# 2. BASE64 IMAGE ENCODER FOR CSS BACKGROUNDS
+# -----------------------------------------------------------------------------
+def get_base64_image(file_path):
+    if os.path.exists(file_path):
+        with open(file_path, "rb") as f:
+            data = f.read()
+        return base64.b64encode(data).decode()
+    return None
+
+
+# -----------------------------------------------------------------------------
+# 3. THEMES & ULTRA HD ENGINE
 # -----------------------------------------------------------------------------
 THEMES = {
     "Bodhi Leaf Luxe": {
@@ -62,8 +75,8 @@ THEMES = {
     },
     "Classic Dark Navy": {
         "image": "",
-        "card_bg": "#0d192d",
-        "header_bg": "#112240",
+        "card_bg": "rgba(13, 25, 45, 0.95)",
+        "header_bg": "rgba(17, 34, 64, 0.95)",
         "accent": "#38bdf8",
         "border": "#1e293b",
     },
@@ -75,15 +88,26 @@ selected_theme_name = st.sidebar.selectbox(
 )
 theme = THEMES[selected_theme_name]
 
-# Check local background image path
-bg_css = f"background-image: linear-gradient(rgba(11,20,38,0.7), rgba(11,20,38,0.7)), url('{theme['image']}'); background-size: cover; background-attachment: fixed;" if theme["image"] and os.path.exists(theme["image"]) else f"background-color: #0b1426;"
+# Convert image to Base64 string for HTML CSS injection
+b64_str = get_base64_image(theme["image"]) if theme["image"] else None
+
+if b64_str:
+    bg_style = f"""
+        background-image: linear-gradient(rgba(11, 20, 38, 0.65), rgba(11, 20, 38, 0.65)), url("data:image/png;base64,{b64_str}");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+    """
+else:
+    bg_style = f"background-color: #0b1426;"
 
 st.markdown(
     f"""
 <style>
-    /* Ultra HD Background Styling */
+    /* Ultra HD Background Injection */
     .stApp {{
-        {bg_css}
+        {bg_style}
         color: #f8fafc;
     }}
     
@@ -93,7 +117,6 @@ st.markdown(
         backdrop-filter: blur(12px);
     }}
 
-    /* Headers */
     .app-header {{
         font-size: 30px;
         font-weight: 800;
@@ -108,14 +131,13 @@ st.markdown(
         margin-bottom: 22px;
     }}
 
-    /* Table Container & Thick Borders */
     .table-container {{
         width: 100%;
         overflow-x: auto;
         border: 2px solid {theme['border']};
         border-radius: 10px;
         background-color: {theme['card_bg']};
-        backdrop-filter: blur(12px);
+        backdrop-filter: blur(14px);
         box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
     }}
     
@@ -127,7 +149,6 @@ st.markdown(
         text-align: center;
     }}
     
-    /* Thick Table Header Lines */
     .scanner-table th {{
         background-color: {theme['header_bg']};
         color: {theme['accent']};
@@ -140,19 +161,17 @@ st.markdown(
         letter-spacing: 0.5px;
     }}
     
-    /* Thick Row/Column Grid Lines */
     .scanner-table td {{
         padding: 12px 10px;
         border: 2px solid {theme['border']} !important;
         vertical-align: middle;
-        background-color: rgba(11, 20, 38, 0.65);
+        background-color: rgba(11, 20, 38, 0.60);
     }}
 
     .scanner-table tr:hover td {{
-        background-color: rgba(30, 58, 138, 0.4) !important;
+        background-color: rgba(30, 58, 138, 0.45) !important;
     }}
 
-    /* Left Aligned TradingView Stock Links */
     .stock-title-cell {{
         text-align: left !important;
         padding-left: 16px !important;
@@ -163,7 +182,6 @@ st.markdown(
         font-weight: 800;
         font-size: 14px;
         text-decoration: none;
-        transition: all 0.2s ease-in-out;
     }}
     
     .stock-link:hover {{
@@ -171,7 +189,6 @@ st.markdown(
         text-decoration: underline;
     }}
 
-    /* Badge Pills */
     .badge {{
         display: inline-block;
         padding: 3px 8px;
@@ -209,7 +226,7 @@ st.markdown(
 
 
 # -----------------------------------------------------------------------------
-# 3. LIVE TECHNICAL CALCULATOR & DATA ENGINE
+# 4. TECHNICAL INDICATOR CALCULATOR
 # -----------------------------------------------------------------------------
 def calculate_rsi(series, period=14):
     delta = series.diff()
@@ -323,7 +340,7 @@ def fetch_live_stock_data(tickers):
 
 
 # -----------------------------------------------------------------------------
-# 4. CONTROLS & HEADER
+# 5. CONTROLS & HEADER
 # -----------------------------------------------------------------------------
 default_tickers = [
     "AEROFLEX.NS",
@@ -359,19 +376,17 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Fetch Data
 with st.spinner("Loading Ultra HD Market Data..."):
     df_live = fetch_live_stock_data(ticker_list)
 
 # -----------------------------------------------------------------------------
-# 5. TABLE RENDER ENGINE
+# 6. TABLE RENDER ENGINE
 # -----------------------------------------------------------------------------
 if not df_live.empty:
     html_table = (
         '<div class="table-container"><table class="scanner-table"><thead><tr>'
     )
 
-    # Simplified Column Names
     headers = [
         "#",
         "STOCK NAME",
@@ -457,9 +472,8 @@ if not df_live.empty:
             else '<span class="badge badge-red">WEAK</span>'
         )
 
-        # TradingView Daily Chart Link
         tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{row['symbol']}&interval=D"
-        stock_cell = f'<td class="stock-title-cell"><a href="{tv_url}" target="_blank" class="stock-link" title="Open TradingView Daily Chart">{row["symbol"]} ↗</a></td>'
+        stock_cell = f'<td class="stock-title-cell"><a href="{tv_url}" target="_blank" class="stock-link">{row["symbol"]} ↗</a></td>'
 
         def ema_td(ema_val):
             is_above = row["price"] > ema_val
