@@ -580,6 +580,7 @@ with tab_scanner:
                 reasons.append(f"• Price < Daily EMA 200 (₹{row['ema200']:.1f})")
 
             # Classification
+            # Classification
             if weakness_score >= 7.5:
                 score_badge = (
                     '<span class="badge badge-darkred">ULTRA BEARISH / STRONG'
@@ -589,11 +590,58 @@ with tab_scanner:
             elif weakness_score >= 5.0:
                 score_badge = '<span class="badge badge-red">WEAK / SELL</span>'
                 signal_title = "⚠️ WEAK / SELL"
+            elif weakness_score >= 2.5:
+                score_badge = (
+                    '<span class="badge badge-purple">NEUTRAL</span>'
+                )
+                signal_title = "🟡 NEUTRAL"
             else:
                 score_badge = (
-                    '<span class="badge badge-green">BULLISH / NEUTRAL</span>'
+                    '<span class="badge badge-green">BULLISH / STRONG'
+                    " BULLISH</span>"
                 )
-                signal_title = "🟢 BULLISH / NEUTRAL"
+                signal_title = "🟢 BULLISH / STRONG BULLISH"
+
+            # TRIGGER TELEGRAM ALERT FOR NEUTRAL & WEAK/SELL ONLY (SKIP BULLISH)
+            if (
+                enable_telegram
+                and telegram_token
+                and telegram_chat_id
+                and weakness_score >= 2.5  # Triggers for Neutral (2.5+), Weak (5.0+), and Ultra Bearish (7.5+)
+            ):
+                alert_key = f"alert_sent_{row['symbol']}_{weakness_score:.1f}"
+                if alert_key not in st.session_state:
+                    # Sanitize HTML tags (< and >) so Telegram parser accepts the message
+                    clean_reasons = [
+                        r.replace("<", "&lt;").replace(">", "&gt;")
+                        for r in reasons
+                    ]
+
+                    alert_msg = (
+                        f"<b>{signal_title}: {row['symbol']}</b>\n"
+                        f"• <b>Price:</b> ₹{row['price']:,.2f}\n"
+                        f"• <b>Weakness Score:</b> {weakness_score:.1f} / 10.0\n\n"
+                        f"<b>Triggered Technical Criteria:</b>\n"
+                        + (
+                            "\n".join(clean_reasons)
+                            if clean_reasons
+                            else "• Overall Neutral conditions met."
+                        )
+                    )
+
+                    ok, err = send_telegram_alert(
+                        telegram_token, telegram_chat_id, alert_msg
+                    )
+                    if ok:
+                        st.session_state[alert_key] = True
+                        st.toast(
+                            f"Telegram Alert sent for {row['symbol']}!",
+                            icon="📱",
+                        )
+                    else:
+                        st.sidebar.error(
+                            f"Alert Failed for {row['symbol']}: {err}"
+                        )
 
             # TRIGGER TELEGRAM ALERT FOR WEAK / SELL
             if (
