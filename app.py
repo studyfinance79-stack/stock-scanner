@@ -6,7 +6,7 @@ import streamlit as st
 import yfinance as yf
 
 # -----------------------------------------------------------------------------
-# 1. PAGE CONFIGURATION
+# 1. PAGE SETUP
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="Technical Stock Scanner Ultra HD",
@@ -17,93 +17,116 @@ st.set_page_config(
 
 
 # -----------------------------------------------------------------------------
-# 2. HELPER TO FIND & CONVERT IMAGES TO BASE64 (CASE-INSENSITIVE)
+# 2. HELPER TO LOAD PRESET REPOSITORY IMAGES
 # -----------------------------------------------------------------------------
-def get_base64_image(image_filename):
-    if not image_filename:
-        return None
+def get_base64_image(target_name):
+    if not target_name:
+        return None, None
 
-    # Search in root directory regardless of exact upper/lower case
-    current_files = os.listdir(".")
-    matched_file = None
-    for f in current_files:
-        if f.lower() == image_filename.lower():
-            matched_file = f
-            break
+    target_clean = (
+        os.path.splitext(target_name)[0].lower().replace(" ", "").replace("_", "")
+    )
 
-    if matched_file and os.path.exists(matched_file):
-        with open(matched_file, "rb") as file:
-            return base64.b64encode(file.read()).decode("utf-8")
-    return None
+    try:
+        for file in os.listdir("."):
+            file_clean = (
+                os.path.splitext(file)[0].lower().replace(" ", "").replace("_", "")
+            )
+            ext = os.path.splitext(file)[1].lower()
+
+            if file_clean == target_clean and ext in [
+                ".jpg",
+                ".jpeg",
+                ".png",
+                ".webp",
+            ]:
+                mime_type = (
+                    "image/jpeg"
+                    if ext in [".jpg", ".jpeg"]
+                    else f"image/{ext.replace('.', '')}"
+                )
+                with open(file, "rb") as f:
+                    encoded = base64.b64encode(f.read()).decode("utf-8")
+                return encoded, mime_type
+    except Exception:
+        pass
+
+    return None, None
 
 
 # -----------------------------------------------------------------------------
-# 3. THEME SELECTION & STYLING ENGINE
+# 3. SIDEBAR THEME & LIVE CUSTOM IMAGE UPLOADER
 # -----------------------------------------------------------------------------
 THEMES = {
     "Golden Honeycomb": {
-        "image": "honey comb golden.png",
-        "card_bg": "rgba(18, 14, 5, 0.88)",
+        "image_key": "honey comb golden",
+        "card_bg": "rgba(18, 14, 5, 0.85)",
         "header_bg": "rgba(38, 28, 8, 0.95)",
         "accent": "#f59e0b",
         "border": "#d97706",
     },
     "Bodhi Leaf Luxe": {
-        "image": "bodhi leaf.png",
-        "card_bg": "rgba(11, 20, 38, 0.88)",
+        "image_key": "bodhi leaf",
+        "card_bg": "rgba(11, 20, 38, 0.85)",
         "header_bg": "rgba(17, 34, 64, 0.95)",
         "accent": "#38bdf8",
         "border": "#0284c7",
     },
     "Royal Blue Honeycomb": {
-        "image": "honey comb royal blue.png",
-        "card_bg": "rgba(6, 18, 38, 0.88)",
+        "image_key": "honey comb royal blue",
+        "card_bg": "rgba(6, 18, 38, 0.85)",
         "header_bg": "rgba(12, 30, 62, 0.95)",
         "accent": "#38bdf8",
         "border": "#1d4ed8",
     },
     "Rhombus Geometric": {
-        "image": "rohmbus pattern.png",
-        "card_bg": "rgba(10, 15, 26, 0.88)",
+        "image_key": "rohmbus pattern",
+        "card_bg": "rgba(10, 15, 26, 0.85)",
         "header_bg": "rgba(20, 30, 50, 0.95)",
         "accent": "#38bdf8",
         "border": "#0369a1",
     },
     "Glowing Ficus Leaf": {
-        "image": "glowing ficus religosa leaf.png",
-        "card_bg": "rgba(8, 14, 28, 0.88)",
+        "image_key": "glowing ficus religosa leaf",
+        "card_bg": "rgba(8, 14, 28, 0.85)",
         "header_bg": "rgba(18, 30, 56, 0.95)",
         "accent": "#60a5fa",
         "border": "#2563eb",
     },
     "Copper Vertical Strips": {
-        "image": "copper strips vertical.png",
-        "card_bg": "rgba(18, 12, 10, 0.88)",
+        "image_key": "copper strips vertical",
+        "card_bg": "rgba(18, 12, 10, 0.85)",
         "header_bg": "rgba(38, 22, 16, 0.95)",
         "accent": "#f97316",
         "border": "#c2410c",
     },
-    "Classic Dark Navy": {
-        "image": "",
-        "card_bg": "rgba(13, 25, 45, 0.95)",
-        "header_bg": "rgba(17, 34, 64, 0.95)",
-        "accent": "#38bdf8",
-        "border": "#1e293b",
-    },
 }
 
-st.sidebar.markdown("### 🎨 Select Background Theme")
+st.sidebar.markdown("### 🎨 Background Styling")
+
+# Live Image Uploader
+custom_bg_file = st.sidebar.file_uploader(
+    "Upload Custom Background (.jpg / .png)",
+    type=["jpg", "jpeg", "png", "webp"],
+    help="Upload any wallpaper directly from your device to set as website background.",
+)
+
 selected_theme_name = st.sidebar.selectbox(
-    "Choose Theme", list(THEMES.keys()), index=0
+    "Choose Preset Card Palette", list(THEMES.keys()), index=0
 )
 theme = THEMES[selected_theme_name]
 
-# Get image Base64 string
-b64_str = get_base64_image(theme["image"])
+# Background Resolution Logic (Priority: Live Upload -> Preset File -> Solid Dark)
+if custom_bg_file is not None:
+    bytes_data = custom_bg_file.read()
+    b64_str = base64.b64encode(bytes_data).decode("utf-8")
+    mime_type = custom_bg_file.type
+else:
+    b64_str, mime_type = get_base64_image(theme["image_key"])
 
-if b64_str:
+if b64_str and mime_type:
     bg_style = f"""
-        background-image: linear-gradient(rgba(10, 14, 23, 0.70), rgba(10, 14, 23, 0.70)), url("data:image/png;base64,{b64_str}") !important;
+        background-image: linear-gradient(rgba(10, 14, 23, 0.55), rgba(10, 14, 23, 0.55)), url("data:{mime_type};base64,{b64_str}") !important;
         background-size: cover !important;
         background-position: center !important;
         background-repeat: no-repeat !important;
@@ -112,16 +135,13 @@ if b64_str:
 else:
     bg_style = "background-color: #0b1426 !important;"
 
+# Inject CSS styles
 st.markdown(
     f"""
 <style>
-    /* Make Streamlit containers transparent to reveal background image */
-    .stApp {{
+    html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"], .main, .block-container {{
         {bg_style}
-    }}
-    
-    [data-testid="stAppViewContainer"], [data-testid="stHeader"] {{
-        background: transparent !important;
+        background-color: transparent !important;
     }}
 
     .stSidebar {{
@@ -135,9 +155,9 @@ st.markdown(
         font-weight: 800;
         color: {theme['accent']};
         margin-bottom: 4px;
-        letter-spacing: -0.5px;
         text-shadow: 0 2px 10px rgba(0,0,0,0.8);
     }}
+    
     .app-subtitle {{
         font-size: 13px;
         color: #cbd5e1;
@@ -157,7 +177,6 @@ st.markdown(
     .scanner-table {{
         width: 100%;
         border-collapse: collapse;
-        font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
         font-size: 13px;
         text-align: center;
     }}
@@ -168,38 +187,13 @@ st.markdown(
         font-weight: 800;
         padding: 14px 10px;
         border: 2px solid {theme['border']} !important;
-        white-space: nowrap;
-        font-size: 12px;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
     }}
     
     .scanner-table td {{
         padding: 12px 10px;
         border: 2px solid {theme['border']} !important;
-        vertical-align: middle;
-        background-color: rgba(11, 20, 38, 0.65);
-    }}
-
-    .scanner-table tr:hover td {{
-        background-color: rgba(217, 119, 6, 0.25) !important;
-    }}
-
-    .stock-title-cell {{
-        text-align: left !important;
-        padding-left: 16px !important;
-    }}
-    
-    .stock-link {{
-        color: {theme['accent']} !important;
-        font-weight: 800;
-        font-size: 14px;
-        text-decoration: none;
-    }}
-    
-    .stock-link:hover {{
-        color: #ffffff !important;
-        text-decoration: underline;
+        background-color: rgba(11, 20, 38, 0.60);
     }}
 
     .badge {{
@@ -208,30 +202,13 @@ st.markdown(
         border-radius: 10px;
         font-size: 9px;
         font-weight: 800;
-        text-transform: uppercase;
-        margin-top: 4px;
-        letter-spacing: 0.5px;
     }}
-    .badge-green {{
-        background-color: rgba(16, 185, 129, 0.25);
-        color: #34d399;
-        border: 1px solid #10b981;
-    }}
-    .badge-purple {{
-        background-color: rgba(168, 85, 247, 0.25);
-        color: #c084fc;
-        border: 1px solid #a855f7;
-    }}
-    .badge-red {{
-        background-color: rgba(239, 68, 68, 0.25);
-        color: #fca5a5;
-        border: 1px solid #ef4444;
-    }}
+    .badge-green {{ background-color: rgba(16, 185, 129, 0.25); color: #34d399; border: 1px solid #10b981; }}
+    .badge-purple {{ background-color: rgba(168, 85, 247, 0.25); color: #c084fc; border: 1px solid #a855f7; }}
+    .badge-red {{ background-color: rgba(239, 68, 68, 0.25); color: #fca5a5; border: 1px solid #ef4444; }}
     
-    .cell-val {{
-        font-weight: 700;
-        color: #f8fafc;
-    }}
+    .cell-val {{ font-weight: 700; color: #f8fafc; }}
+    .stock-link {{ color: {theme['accent']} !important; font-weight: 800; text-decoration: none; }}
 </style>
 """,
     unsafe_allow_html=True,
@@ -239,7 +216,7 @@ st.markdown(
 
 
 # -----------------------------------------------------------------------------
-# 4. TECHNICAL INDICATOR CALCULATOR (FETCHES 5 YEARS FOR MONTHLY RSI)
+# 4. TECHNICAL INDICATOR CALCULATOR
 # -----------------------------------------------------------------------------
 def calculate_rsi(series, period=14):
     delta = series.diff()
@@ -280,7 +257,6 @@ def fetch_live_stock_data(tickers):
     for symbol in tickers:
         try:
             stock = yf.Ticker(symbol)
-            # Fetch 5 years to ensure sufficient monthly data points (>15 months)
             df = stock.history(period="5y")
             if df.empty or len(df) < 50:
                 continue
@@ -302,16 +278,11 @@ def fetch_live_stock_data(tickers):
             ema100 = df["Close"].ewm(span=100).mean().iloc[-1]
             ema200 = df["Close"].ewm(span=200).mean().iloc[-1]
 
-            # Daily RSI
             rsi_daily = calculate_rsi(df["Close"], 14).iloc[-1]
-
-            # Weekly RSI
             df_w = df["Close"].resample("W").last().dropna()
             rsi_weekly = (
                 calculate_rsi(df_w, 14).iloc[-1] if len(df_w) >= 15 else 50.0
             )
-
-            # Monthly RSI (Now accurate with 5Y data)
             df_m = df["Close"].resample("ME").last().dropna()
             rsi_monthly = (
                 calculate_rsi(df_m, 14).iloc[-1] if len(df_m) >= 15 else 50.0
@@ -359,7 +330,7 @@ def fetch_live_stock_data(tickers):
 
 
 # -----------------------------------------------------------------------------
-# 5. HEADER & CONTROLS
+# 5. RENDER INTERFACE
 # -----------------------------------------------------------------------------
 default_tickers = [
     "AEROFLEX.NS",
@@ -372,8 +343,6 @@ default_tickers = [
     "ICICIBANK.NS",
     "SBIN.NS",
     "HAL.NS",
-    "BEL.NS",
-    "DIXON.NS",
 ]
 
 st.sidebar.markdown("### 📡 NSE Ticker Feed")
@@ -395,17 +364,13 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-with st.spinner("Loading Ultra HD Market Data & Multi-Timeframe RSI..."):
+with st.spinner("Loading Ultra HD Market Data..."):
     df_live = fetch_live_stock_data(ticker_list)
 
-# -----------------------------------------------------------------------------
-# 6. RENDER TABLE
-# -----------------------------------------------------------------------------
 if not df_live.empty:
     html_table = (
         '<div class="table-container"><table class="scanner-table"><thead><tr>'
     )
-
     headers = [
         "#",
         "STOCK NAME",
@@ -438,7 +403,6 @@ if not df_live.empty:
             if row["change"] >= 0
             else '<span class="badge badge-red">DOWN</span>'
         )
-
         score_val = row["ai_score"]
         score_badge = (
             '<span class="badge badge-purple">STRONG BUY</span>'
@@ -449,7 +413,6 @@ if not df_live.empty:
                 else '<span class="badge badge-red">WEAK</span>'
             )
         )
-
         vol_lakhs = f"{row['vol'] / 100000:.2f}L"
         vol_badge = (
             '<span class="badge badge-purple">SPIKE</span>'
@@ -460,21 +423,18 @@ if not df_live.empty:
                 else '<span class="badge badge-red">LOW VOL</span>'
             )
         )
-
         st_str = f"₹{row['supertrend']:,.1f}"
         st_badge = (
             '<span class="badge badge-green">BULLISH</span>'
             if row["is_st_bullish"]
             else '<span class="badge badge-red">BEARISH</span>'
         )
-
         adx_str = f"{row['adx']:.1f}"
         adx_badge = (
             '<span class="badge badge-green">STRONG</span>'
             if row["adx"] >= 25
             else '<span class="badge badge-red">WEAK</span>'
         )
-
         rsi_d_badge = (
             '<span class="badge badge-green">BULLISH</span>'
             if row["rsi_d"] >= 52
@@ -492,7 +452,7 @@ if not df_live.empty:
         )
 
         tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{row['symbol']}&interval=D"
-        stock_cell = f'<td class="stock-title-cell"><a href="{tv_url}" target="_blank" class="stock-link">{row["symbol"]} ↗</a></td>'
+        stock_cell = f'<td style="text-align: left; padding-left: 16px;"><a href="{tv_url}" target="_blank" class="stock-link">{row["symbol"]} ↗</a></td>'
 
         def ema_td(ema_val):
             is_above = row["price"] > ema_val
@@ -520,8 +480,5 @@ if not df_live.empty:
             {ema_td(row['ema200'])}
         </tr>"""
 
-    html_table += "</tbody>addClass='scanner-table'</table></div>"
+    html_table += "</tbody></table></div>"
     st.markdown(html_table, unsafe_allow_html=True)
-
-else:
-    st.error("No data fetched. Please check your ticker list.")
