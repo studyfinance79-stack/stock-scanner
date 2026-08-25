@@ -13,7 +13,7 @@ st.set_page_config(
 # Auto-refresh app every 60 seconds
 st_autorefresh(interval=60000, key="stock_scanner_autorefresh")
 
-# Original HD Styling & Glassmorphism CSS
+# Original HD Visual CSS Theme
 st.markdown(
     """
 <style>
@@ -50,15 +50,6 @@ st.markdown(
         position: sticky;
         top: 0;
         z-index: 10;
-        text-align: center;
-    }
-    .scanner-table tfoot th {
-        background-color: rgba(17, 34, 64, 0.98) !important;
-        color: #38bdf8;
-        font-weight: 800;
-        padding: 12px 8px;
-        border: 2px solid #0284c7 !important;
-        text-transform: uppercase;
         text-align: center;
     }
     .scanner-table td {
@@ -507,20 +498,7 @@ if not df_live.empty:
                 else:
                     st.sidebar.error(f"Alert Failed for {row['symbol']}: {err}")
 
-    html_table += "</tbody>"
-
-    # FOOTER ROW WITH COLUMN HEADERS
-    html_table += "<tfoot><tr>"
-    for h in headers:
-        align_css = (
-            'style="text-align: left; padding-left: 14px;"'
-            if "STOCK NAME" in h
-            else ""
-        )
-        html_table += f"<th {align_css}>{h}</th>"
-    html_table += "</tr></tfoot>"
-
-    html_table += "</table></div>"
+    html_table += "</tbody></table></div>"
     st.markdown(html_table, unsafe_allow_html=True)
 else:
     st.info("No stock data fetched. Please check your stock list tickers.")
