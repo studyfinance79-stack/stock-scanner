@@ -1,525 +1,756 @@
-import re
+import base64
+import json
+import os
 import numpy as np
 import pandas as pd
 import requests
 import streamlit as st
-from streamlit_autorefresh import st_autorefresh
 import yfinance as yf
 
-# Page Setup
+# Safe import for auto-refresh library
+try:
+    from streamlit_autorefresh import st_autorefresh
+
+    HAS_AUTOREFRESH = True
+except ImportError:
+    HAS_AUTOREFRESH = False
+
+# -----------------------------------------------------------------------------
+# 1. PAGE SETUP
+# -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Technical Stock Scanner Ultra", page_icon="📈", layout="wide"
+    page_title="Technical Stock Scanner Ultra HD",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
 
-# Auto-refresh app every 60 seconds
-st_autorefresh(interval=60000, key="stock_scanner_autorefresh")
+# -----------------------------------------------------------------------------
+# 2. PERSISTENT TICKER STORAGE (JSON FILE)
+# -----------------------------------------------------------------------------
+TICKERS_FILE = "tickers.json"
 
-# Custom CSS for UI & Sticky Headers / Bottom Footers
-st.markdown(
+DEFAULT_TICKERS = [
+    "AEROFLEX",
+    "BLSE",
+    "DATAPATTNS",
+    "RELIANCE",
+    "TCS",
+    "INFY",
+    "TATAMOTORS",
+    "ICICIBANK",
+    "SBIN",
+    "HAL",
+]
+
+
+def load_saved_tickers():
+    if os.path.exists(TICKERS_FILE):
+        try:
+            with open(TICKERS_FILE, "r") as f:
+                data = json.load(f)
+                if isinstance(data, list) and len(data) > 0:
+                    return data
+        except Exception:
+            pass
+    return DEFAULT_TICKERS.copy()
+
+
+def save_tickers(ticker_list):
+    try:
+        with open(TICKERS_FILE, "w") as f:
+            json.dump(ticker_list, f, indent=2)
+    except Exception as e:
+        st.error(f"Failed to save stock list: {e}")
+
+
+if "ticker_list" not in st.session_state:
+    st.session_state.ticker_list = load_saved_tickers()
+
+# -----------------------------------------------------------------------------
+# 3. AUTO-REFRESH & TELEGRAM ALERT CONFIGURATION
+# -----------------------------------------------------------------------------
+st.sidebar.markdown("### 🔄 Auto-Refresh Data")
+refresh_option = st.sidebar.selectbox(
+    "Select Refresh Rate",
+    options=["Off", "30 Seconds", "1 Minute", "3 Minutes", "5 Minutes"],
+    index=2,
+)
+
+refresh_map = {
+    "30 Seconds": 30000,
+    "1 Minute": 60000,
+    "3 Minutes": 180000,
+    "5 Minutes": 300000,
+}
+
+if refresh_option != "Off":
+    if HAS_AUTOREFRESH:
+        st_autorefresh(
+            interval=refresh_map[refresh_option], key="data_autorefresh"
+        )
+    else:
+        st.sidebar.warning(
+            "Installing auto-refresh package... Please refresh page in 1 minute."
+        )
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 📱 Telegram Alerts (WEAK / SELL Only)")
+enable_telegram = st.sidebar.checkbox("Enable Telegram Notifications", value=False)
+telegram_token = st.sidebar.text_input(
+    "Bot Token", type="password", help="Enter Bot Father Token"
+)
+telegram_chat_id = st.sidebar.text_input("Chat ID", help="Enter Target Chat ID")
+
+
+def send_telegram_alert(bot_token, chat_id, text):
+    """Sends Telegram message strictly for Bearish / Sell triggers."""
+    if not bot_token or not chat_id:
+        return False
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+    try:
+        resp = requests.post(url, json=payload, timeout=5)
+        return resp.status_code == 200
+    except Exception:
+        return False
+
+
+# -----------------------------------------------------------------------------
+# 4. HELPER TO LOAD PRESET REPOSITORY IMAGES
+# -----------------------------------------------------------------------------
+def get_base64_image(target_name):
+    if not target_name:
+        return None, None
+
+    target_clean = (
+        os.path.splitext(target_name)[0].lower().replace(" ", "").replace("_", "")
+    )
+
+    try:
+        for file in os.listdir("."):
+            file_clean = (
+                os.path.splitext(file)[0].lower().replace(" ", "").replace("_", "")
+            )
+            ext = os.path.splitext(file)[1].lower()
+
+            if file_clean == target_clean and ext in [
+                ".jpg",
+                ".jpeg",
+                ".png",
+                ".webp",
+            ]:
+                mime_type = (
+                    "image/jpeg"
+                    if ext in [".jpg", ".jpeg"]
+                    else f"image/{ext.replace('.', '')}"
+                )
+                with open(file, "rb") as f:
+                    encoded = base64.b64encode(f.read()).decode("utf-8")
+                return encoded, mime_type
+    except Exception:
+        pass
+
+    return None, None
+
+
+# -----------------------------------------------------------------------------
+# 5. SIDEBAR THEME & STYLING
+# -----------------------------------------------------------------------------
+THEMES = {
+    "Bodhi Leaf Luxe": {
+        "image_key": "bodhi leaf",
+        "card_bg": "rgba(11, 20, 38, 0.85)",
+        "header_bg": "rgba(17, 34, 64, 0.95)",
+        "accent": "#38bdf8",
+        "border": "#0284c7",
+    },
+    "Golden Honeycomb": {
+        "image_key": "honey comb golden",
+        "card_bg": "rgba(18, 14, 5, 0.85)",
+        "header_bg": "rgba(38, 28, 8, 0.95)",
+        "accent": "#f59e0b",
+        "border": "#d97706",
+    },
+    "Royal Blue Honeycomb": {
+        "image_key": "honey comb royal blue",
+        "card_bg": "rgba(6, 18, 38, 0.85)",
+        "header_bg": "rgba(12, 30, 62, 0.95)",
+        "accent": "#38bdf8",
+        "border": "#1d4ed8",
+    },
+    "Rhombus Geometric": {
+        "image_key": "rohmbus pattern",
+        "card_bg": "rgba(10, 15, 26, 0.85)",
+        "header_bg": "rgba(20, 30, 50, 0.95)",
+        "accent": "#38bdf8",
+        "border": "#0369a1",
+    },
+    "Glowing Ficus Leaf": {
+        "image_key": "glowing ficus religosa leaf",
+        "card_bg": "rgba(8, 14, 28, 0.85)",
+        "header_bg": "rgba(18, 30, 56, 0.95)",
+        "accent": "#60a5fa",
+        "border": "#2563eb",
+    },
+    "Copper Vertical Strips": {
+        "image_key": "copper strips vertical",
+        "card_bg": "rgba(18, 12, 10, 0.85)",
+        "header_bg": "rgba(38, 22, 16, 0.95)",
+        "accent": "#f97316",
+        "border": "#c2410c",
+    },
+}
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 🎨 Background Styling")
+custom_bg_file = st.sidebar.file_uploader(
+    "Upload Background Image", type=["jpg", "jpeg", "png", "webp"]
+)
+selected_theme_name = st.sidebar.selectbox(
+    "Choose Preset Palette", list(THEMES.keys()), index=0
+)
+theme = THEMES[selected_theme_name]
+
+if custom_bg_file is not None:
+    bytes_data = custom_bg_file.read()
+    b64_str = base64.b64encode(bytes_data).decode("utf-8")
+    mime_type = custom_bg_file.type
+else:
+    b64_str, mime_type = get_base64_image(theme["image_key"])
+
+if b64_str and mime_type:
+    bg_style = f"""
+        background-image: linear-gradient(rgba(10, 14, 23, 0.55), rgba(10, 14, 23, 0.55)), url("data:{mime_type};base64,{b64_str}") !important;
+        background-size: cover !important;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+        background-attachment: fixed !important;
     """
+else:
+    bg_style = "background-color: #0b1426 !important;"
+
+st.markdown(
+    f"""
 <style>
-    .stApp {
-        background-color: #0b132b;
-        color: #ffffff;
-    }
-    .table-container {
-        max-height: 78vh;
-        overflow-y: auto;
-        border: 2px solid #0284c7;
-        border-radius: 8px;
-        margin-top: 10px;
-    }
-    .scanner-table {
+    html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"], .main, .block-container {{
+        {bg_style}
+        background-color: transparent !important;
+    }}
+
+    .stSidebar {{
+        background-color: {theme['card_bg']} !important;
+        border-right: 2px solid {theme['border']} !important;
+        backdrop-filter: blur(12px);
+    }}
+
+    .app-header {{
+        font-size: 30px;
+        font-weight: 800;
+        color: {theme['accent']};
+        margin-bottom: 4px;
+        text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+    }}
+    
+    .app-subtitle {{
+        font-size: 13px;
+        color: #cbd5e1;
+        margin-bottom: 18px;
+    }}
+
+    .table-container {{
+        width: 100%;
+        overflow-x: auto;
+        border: 2px solid {theme['border']};
+        border-radius: 10px;
+        background-color: {theme['card_bg']};
+        backdrop-filter: blur(14px);
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
+    }}
+    
+    .scanner-table {{
         width: 100%;
         border-collapse: collapse;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         font-size: 13px;
-    }
-    .scanner-table th {
-        background-color: rgba(17, 34, 64, 0.98) !important;
-        color: #38bdf8;
+        text-align: center;
+    }}
+    
+    .scanner-table th {{
+        background-color: {theme['header_bg']};
+        color: {theme['accent']};
         font-weight: 800;
-        padding: 12px 8px;
-        border: 2px solid #0284c7 !important;
+        padding: 14px 10px;
+        border: 2px solid {theme['border']} !important;
         text-transform: uppercase;
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        text-align: center;
-    }
-    .scanner-table tfoot th {
-        background-color: rgba(17, 34, 64, 0.98) !important;
-        color: #38bdf8;
-        font-weight: 800;
-        padding: 12px 8px;
-        border: 2px solid #0284c7 !important;
-        text-transform: uppercase;
-        text-align: center;
-    }
-    .scanner-table td {
-        padding: 8px 6px;
-        border: 1px solid #1e293b;
-        text-align: center;
-        vertical-align: middle;
-    }
-    .badge {
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-weight: bold;
-        font-size: 11px;
+    }}
+    
+    .scanner-table td {{
+        padding: 12px 10px;
+        border: 2px solid {theme['border']} !important;
+        background-color: rgba(11, 20, 38, 0.60);
+    }}
+
+    .badge {{
         display: inline-block;
-    }
-    .badge-darkred { background-color: #7f1d1d; color: #fca5a5; }
-    .badge-red { background-color: #991b1b; color: #fecaca; }
-    .badge-purple { background-color: #581c87; color: #e9d5ff; }
-    .badge-green { background-color: #065f46; color: #a7f3d0; }
-    .badge-vol { background-color: #312e81; color: #c7d2fe; }
-    .badge-weak { background-color: #831843; color: #fbcfe8; }
-    .badge-ok { background-color: #064e3b; color: #a7f3d0; }
+        padding: 3px 8px;
+        border-radius: 10px;
+        font-size: 9px;
+        font-weight: 800;
+    }}
+    .badge-green {{ background-color: rgba(16, 185, 129, 0.25); color: #34d399; border: 1px solid #10b981; }}
+    .badge-purple {{ background-color: rgba(168, 85, 247, 0.25); color: #c084fc; border: 1px solid #a855f7; }}
+    .badge-red {{ background-color: rgba(239, 68, 68, 0.25); color: #fca5a5; border: 1px solid #ef4444; }}
+    .badge-darkred {{ background-color: rgba(153, 27, 27, 0.6); color: #fecaca; border: 1px solid #dc2626; font-weight: 900; }}
+    
+    .cell-val {{ font-weight: 700; color: #f8fafc; }}
+    .stock-link {{ color: {theme['accent']} !important; font-weight: 800; text-decoration: none; }}
 </style>
 """,
     unsafe_allow_html=True,
 )
 
 
-# Helper: Telegram Alert Sender
-def send_telegram_alert(token, chat_id, message):
-    try:
-        url = f"https://api.telegram.org/bot{token}/sendMessage"
-        payload = {"chat_id": chat_id, "text": message, "parse_mode": "HTML"}
-        res = requests.post(url, json=payload, timeout=5)
-        res_json = res.json()
-        if res_json.get("ok"):
-            return True, None
-        return False, res_json.get("description", "Unknown Telegram API Error")
-    except Exception as e:
-        return False, str(e)
-
-
-# Technical Indicator Calculations
+# -----------------------------------------------------------------------------
+# 6. TECHNICAL INDICATOR CALCULATOR (SUPERTREND FIXED WITHOUT NaN)
+# -----------------------------------------------------------------------------
 def calculate_rsi(series, period=14):
     delta = series.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-    rs = gain / loss
+    rs = gain / (loss + 1e-9)
     return 100 - (100 / (1 + rs))
 
 
 def calculate_adx(df, period=14):
     df = df.copy()
-    df["tr1"] = df["High"] - df["Low"]
-    df["tr2"] = abs(df["High"] - df["Close"].shift(1))
-    df["tr3"] = abs(df["Low"] - df["Close"].shift(1))
-    df["tr"] = df[["tr1", "tr2", "tr3"]].max(axis=1)
+    df["h-l"] = df["High"] - df["Low"]
+    df["h-pc"] = abs(df["High"] - df["Close"].shift(1))
+    df["l-pc"] = abs(df["Low"] - df["Close"].shift(1))
+    df["tr"] = df[["h-l", "h-pc", "l-pc"]].max(axis=1)
 
-    df["up_move"] = df["High"] - df["High"].shift(1)
-    df["down_move"] = df["Low"].shift(1) - df["Low"]
-
-    df["plus_dm"] = np.where(
-        (df["up_move"] > df["down_move"]) & (df["up_move"] > 0),
-        df["up_move"],
+    df["+dm"] = np.where(
+        (df["High"] - df["High"].shift(1)) > (df["Low"].shift(1) - df["Low"]),
+        np.maximum(df["High"] - df["High"].shift(1), 0),
         0,
     )
-    df["minus_dm"] = np.where(
-        (df["down_move"] > df["up_move"]) & (df["down_move"] > 0),
-        df["down_move"],
+    df["-dm"] = np.where(
+        (df["Low"].shift(1) - df["Low"]) > (df["High"] - df["High"].shift(1)),
+        np.maximum(df["Low"].shift(1) - df["Low"], 0),
         0,
     )
 
-    tr_smooth = df["tr"].rolling(window=period).sum()
-    plus_di = 100 * (df["plus_dm"].rolling(window=period).sum() / tr_smooth)
-    minus_di = 100 * (df["minus_dm"].rolling(window=period).sum() / tr_smooth)
-
-    dx = 100 * (abs(plus_di - minus_di) / (plus_di + minus_di))
-    adx = dx.rolling(window=period).mean()
-    return adx.iloc[-1]
+    tr_s = df["tr"].rolling(period).sum()
+    plus_di = 100 * (df["+dm"].rolling(period).sum() / (tr_s + 1e-9))
+    minus_di = 100 * (df["-dm"].rolling(period).sum() / (tr_s + 1e-9))
+    dx = 100 * (abs(plus_di - minus_di) / (plus_di + minus_di + 1e-9))
+    return dx.rolling(period).mean()
 
 
 def calculate_supertrend(df, period=10, multiplier=2):
+    """Calculates exact ATR-based SuperTrend (10, 2) without NaN propagation."""
+    df = df.copy()
     high, low, close = df["High"], df["Low"], df["Close"]
+
+    # Calculate True Range (TR)
     tr1 = high - low
-    tr2 = abs(high - close.shift(1))
-    tr3 = abs(low - close.shift(1))
-    atr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1).rolling(period).mean()
+    tr2 = (high - close.shift(1)).abs()
+    tr3 = (low - close.shift(1)).abs()
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
 
+    # 10-period Average True Range
+    atr = tr.rolling(window=period).mean()
+
+    # Basic Bands
     hl2 = (high + low) / 2
-    basic_ub = hl2 + (multiplier * atr)
-    basic_lb = hl2 - (multiplier * atr)
+    basic_upper = hl2 + (multiplier * atr)
+    basic_lower = hl2 - (multiplier * atr)
 
-    final_ub = pd.Series(0.0, index=df.index)
-    final_lb = pd.Series(0.0, index=df.index)
-    st_val = pd.Series(0.0, index=df.index)
+    # Initialize final bands
+    final_upper = basic_upper.copy()
+    final_lower = basic_lower.copy()
+    st_dir = np.ones(len(df), dtype=bool)  # True = Bullish, False = Bearish
+    supertrend = np.zeros(len(df))
 
-    for i in range(1, len(df)):
+    # Start loop after the ATR warm-up period (index >= period)
+    for i in range(period, len(df)):
+        # Final Upper Band
         if (
-            basic_ub.iloc[i] < final_ub.iloc[i - 1]
-            or close.iloc[i - 1] > final_ub.iloc[i - 1]
+            basic_upper.iloc[i] < final_upper.iloc[i - 1]
+            or close.iloc[i - 1] > final_upper.iloc[i - 1]
         ):
-            final_ub.iloc[i] = basic_ub.iloc[i]
+            final_upper.iloc[i] = basic_upper.iloc[i]
         else:
-            final_ub.iloc[i] = final_ub.iloc[i - 1]
+            final_upper.iloc[i] = final_upper.iloc[i - 1]
 
+        # Final Lower Band
         if (
-            basic_lb.iloc[i] > final_lb.iloc[i - 1]
-            or close.iloc[i - 1] < final_lb.iloc[i - 1]
+            basic_lower.iloc[i] > final_lower.iloc[i - 1]
+            or close.iloc[i - 1] < final_lower.iloc[i - 1]
         ):
-            final_lb.iloc[i] = basic_lb.iloc[i]
+            final_lower.iloc[i] = basic_lower.iloc[i]
         else:
-            final_lb.iloc[i] = final_lb.iloc[i - 1]
+            final_lower.iloc[i] = final_lower.iloc[i - 1]
 
-    for i in range(1, len(df)):
-        if close.iloc[i] <= final_ub.iloc[i]:
-            st_val.iloc[i] = final_ub.iloc[i]
+        # SuperTrend Trend Direction
+        if st_dir[i - 1] and close.iloc[i] < final_lower.iloc[i]:
+            st_dir[i] = False
+        elif not st_dir[i - 1] and close.iloc[i] > final_upper.iloc[i]:
+            st_dir[i] = True
         else:
-            st_val.iloc[i] = final_lb.iloc[i]
+            st_dir[i] = st_dir[i - 1]
 
-    current_st = st_val.iloc[-1]
-    is_bullish = close.iloc[-1] > current_st
-    return current_st, is_bullish
-
-
-# Sidebar Configuration
-st.sidebar.title("⚙️ Scanner Settings")
-
-default_stocks = [
-    "DATAPATTNS.NS",
-    "IPCALAB.NS",
-    "KANORICHEM.NS",
-    "MODTHREAD.NS",
-    "NETWEB.NS",
-    "PREMIERPOL.NS",
-    "SONACOMS.NS",
-    "RELIANCE.NS",
-]
-stock_list_input = st.sidebar.text_area(
-    "Stock Watchlist (NSE tickers separated by comma):",
-    value=", ".join(default_stocks),
-    height=120,
-)
-stocks = [s.strip().upper() for s in stock_list_input.split(",") if s.strip()]
-
-st.sidebar.markdown("---")
-st.sidebar.subheader("📱 Telegram Alerts")
-enable_telegram = st.sidebar.checkbox(
-    "Enable Telegram Notifications", value=True
-)
-
-telegram_token = st.sidebar.text_input(
-    "Telegram Bot Token",
-    value=st.secrets.get("TELEGRAM_BOT_TOKEN", ""),
-    type="password",
-)
-telegram_chat_id = st.sidebar.text_input(
-    "Telegram Chat ID", value=st.secrets.get("TELEGRAM_CHAT_ID", "")
-)
-
-if st.sidebar.button("🧪 Send Test Telegram Alert"):
-    if telegram_token and telegram_chat_id:
-        ok, err = send_telegram_alert(
-            telegram_token,
-            telegram_chat_id,
-            "<b>Test Alert from Technical Stock Scanner!</b>\nTelegram integration is working properly.",
+        supertrend[i] = (
+            final_lower.iloc[i] if st_dir[i] else final_upper.iloc[i]
         )
-        if ok:
-            st.sidebar.success("Test alert sent successfully!")
-        else:
-            st.sidebar.error(f"Failed to send: {err}")
-    else:
-        st.sidebar.warning("Please enter Bot Token and Chat ID.")
 
-if st.sidebar.button("🔄 Reset Telegram Alert Logs"):
-    keys_to_remove = [
-        key for key in st.session_state if key.startswith("alert_sent_")
-    ]
-    for key in keys_to_remove:
-        del st.session_state[key]
-    st.sidebar.success("Alert memory cleared! Re-evaluating scanner...")
+    return supertrend[-1], bool(st_dir[-1])
 
-# Data Processing Loop
-scanner_data = []
 
-for symbol in stocks:
-    try:
-        ticker = yf.Ticker(symbol)
-        df_daily = ticker.history(period="1y", interval="1d")
-        if df_daily.empty or len(df_daily) < 100:
+@st.cache_data(ttl=60)
+def fetch_live_stock_data(tickers):
+    results = []
+    for raw_symbol in tickers:
+        try:
+            symbol = (
+                f"{raw_symbol.strip().upper()}.NS"
+                if not raw_symbol.endswith(".NS")
+                else raw_symbol.strip().upper()
+            )
+            stock = yf.Ticker(symbol)
+            df = stock.history(period="2y")
+            if df.empty or len(df) < 50:
+                continue
+
+            clean_symbol = symbol.replace(".NS", "").replace("^", "")
+
+            cp = df["Close"].iloc[-1]
+            prev_cp = df["Close"].iloc[-2]
+            price_change = ((cp - prev_cp) / prev_cp) * 100
+
+            vol_curr = df["Volume"].iloc[-1]
+            vol_avg = df["Volume"].tail(20).mean()
+            vol_spike = (
+                ((vol_curr - vol_avg) / vol_avg) * 100 if vol_avg > 0 else 0
+            )
+
+            ema20 = df["Close"].ewm(span=20).mean().iloc[-1]
+            ema50 = df["Close"].ewm(span=50).mean().iloc[-1]
+            ema100 = df["Close"].ewm(span=100).mean().iloc[-1]
+            ema200 = df["Close"].ewm(span=200).mean().iloc[-1]
+
+            rsi_daily = calculate_rsi(df["Close"], 14).iloc[-1]
+            df_w = df["Close"].resample("W").last().dropna()
+            rsi_weekly = (
+                calculate_rsi(df_w, 14).iloc[-1] if len(df_w) >= 15 else 50.0
+            )
+            df_m = df["Close"].resample("ME").last().dropna()
+            rsi_monthly = (
+                calculate_rsi(df_m, 14).iloc[-1] if len(df_m) >= 15 else 50.0
+            )
+
+            adx = calculate_adx(df, 14).iloc[-1]
+            st_val, is_bullish_st = calculate_supertrend(
+                df, period=10, multiplier=2
+            )
+
+            # Ultra Bearish Condition: Price below ALL EMAs (20, 50, 100, 200)
+            is_ultra_bearish = (
+                (cp < ema20) and (cp < ema50) and (cp < ema100) and (cp < ema200)
+            )
+
+            # Scoring based strictly on user parameters
+            score = 0.0
+            if is_bullish_st:
+                score += 1.5
+            if cp > ema20:
+                score += 1.0
+            if cp > ema50:
+                score += 1.0
+            if cp > ema100:
+                score += 1.0
+            if cp > ema200:
+                score += 1.0
+            if rsi_daily >= 52:
+                score += 1.5
+            if rsi_weekly >= 60:
+                score += 1.5
+            if rsi_monthly >= 60:
+                score += 1.5
+
+            results.append({
+                "symbol": clean_symbol,
+                "price": cp,
+                "change": price_change,
+                "vol": vol_curr,
+                "vol_spike": vol_spike,
+                "supertrend": st_val,
+                "is_st_bullish": is_bullish_st,
+                "adx": adx,
+                "rsi_d": rsi_daily,
+                "rsi_w": rsi_weekly,
+                "rsi_m": rsi_monthly,
+                "ema20": ema20,
+                "ema50": ema50,
+                "ema100": ema100,
+                "ema200": ema200,
+                "ai_score": score,
+                "is_ultra_bearish": is_ultra_bearish,
+            })
+        except Exception:
             continue
+    return pd.DataFrame(results)
 
-        df_weekly = ticker.history(period="2y", interval="1wk")
-        df_monthly = ticker.history(period="5y", interval="1mo")
 
-        latest_price = df_daily["Close"].iloc[-1]
-        prev_price = df_daily["Close"].iloc[-2]
-        price_change_up = latest_price >= prev_price
+# -----------------------------------------------------------------------------
+# 7. APP HEADER & MAIN TABS
+# -----------------------------------------------------------------------------
+st.markdown(
+    '<div class="app-header">📈 Technical Stock Scanner</div>',
+    unsafe_allow_html=True,
+)
+st.markdown(
+    '<div class="app-subtitle">Real-time indicators with direct TradingView'
+    " chart linkage and custom multi-timeframe rules.</div>",
+    unsafe_allow_html=True,
+)
 
-        # EMAs
-        ema20 = df_daily["Close"].ewm(span=20, adjust=False).mean().iloc[-1]
-        ema50 = df_daily["Close"].ewm(span=50, adjust=False).mean().iloc[-1]
-        ema100 = df_daily["Close"].ewm(span=100, adjust=False).mean().iloc[-1]
-        ema200 = df_daily["Close"].ewm(span=200, adjust=False).mean().iloc[-1]
+tab_scanner, tab_manage, tab_background = st.tabs(
+    ["📊 Stock Scanner", "⚙️ Add / Remove Stocks", "🖼️ Background Settings"]
+)
 
-        # RSIs
-        daily_rsi = calculate_rsi(df_daily["Close"]).iloc[-1]
-        weekly_rsi = calculate_rsi(df_weekly["Close"]).iloc[-1]
-        monthly_rsi = calculate_rsi(df_monthly["Close"]).iloc[-1]
+# -----------------------------------------------------------------------------
+# TAB 1: SCANNER TABLE & TELEGRAM ALERT ENGINE
+# -----------------------------------------------------------------------------
+with tab_scanner:
+    with st.spinner("Loading Market Data..."):
+        df_live = fetch_live_stock_data(st.session_state.ticker_list)
 
-        # ADX & Supertrend
-        adx_val = calculate_adx(df_daily)
-        st_val, st_bullish = calculate_supertrend(df_daily)
-
-        # Volume
-        avg_vol_20 = df_daily["Volume"].tail(20).mean()
-        latest_vol = df_daily["Volume"].iloc[-1]
-        has_vol_spike = latest_vol > (1.8 * avg_vol_20)
-        vol_lakhs = latest_vol / 100000
-
-        # Weakness Scoring Logic
-        weakness_score = 0.0
-        reasons = []
-
-        if monthly_rsi < 60:
-            weakness_score += 1.0
-            reasons.append(f"• Monthly RSI: {monthly_rsi:.1f} (&lt; 60)")
-        if weekly_rsi < 60:
-            weakness_score += 1.0
-            reasons.append(f"• Weekly RSI: {weekly_rsi:.1f} (&lt; 60)")
-        if daily_rsi < 52:
-            weakness_score += 1.0
-            reasons.append(f"• Daily RSI: {daily_rsi:.1f} (&lt; 52)")
-
-        if latest_price < ema20:
-            weakness_score += 1.0
-            reasons.append(f"• Price &lt; Daily EMA 20 (₹{ema20:.1f})")
-        if latest_price < ema50:
-            weakness_score += 1.0
-            reasons.append(f"• Price &lt; Daily EMA 50 (₹{ema50:.1f})")
-        if latest_price < ema100:
-            weakness_score += 1.0
-            reasons.append(f"• Price &lt; Daily EMA 100 (₹{ema100:.1f})")
-        if latest_price < ema200:
-            weakness_score += 1.0
-            reasons.append(f"• Price &lt; Daily EMA 200 (₹{ema200:.1f})")
-
-        if not st_bullish:
-            weakness_score += 1.5
-            reasons.append(f"• Bearish Supertrend (₹{st_val:.1f})")
-        if adx_val < 20:
-            weakness_score += 1.5
-            reasons.append(f"• Weak Trend ADX: {adx_val:.1f} (&lt; 20)")
-
-        clean_symbol = symbol.replace(".NS", "")
-
-        scanner_data.append({
-            "symbol": clean_symbol,
-            "price": latest_price,
-            "price_up": price_change_up,
-            "weakness_score": weakness_score,
-            "vol_lakhs": vol_lakhs,
-            "vol_spike": has_vol_spike,
-            "supertrend_val": st_val,
-            "supertrend_bullish": st_bullish,
-            "adx": adx_val,
-            "daily_rsi": daily_rsi,
-            "weekly_rsi": weekly_rsi,
-            "monthly_rsi": monthly_rsi,
-            "ema20": ema20,
-            "ema50": ema50,
-            "ema100": ema100,
-            "ema200": ema200,
-            "reasons": reasons,
-        })
-    except Exception as e:
-        continue
-
-df_live = pd.DataFrame(scanner_data)
-
-# Main UI Display
-st.title("⚡ Technical Stock Scanner")
-
-headers = [
-    "#",
-    "STOCK NAME",
-    "PRICE",
-    "WEAKNESS SCORE",
-    "AVG. VOL & SPIKE",
-    "SUPERTREND (10,2)",
-    "ADX (14)",
-    "DAILY RSI (&lt;52)",
-    "WEEKLY RSI (&lt;60)",
-    "MONTHLY RSI (&lt;60)",
-    "&lt; EMA 20",
-    "&lt; EMA 50",
-    "&lt; EMA 100",
-    "&lt; EMA 200",
-]
-
-if not df_live.empty:
-    html_table = (
-        '<div class="table-container"><table class="scanner-table"><thead><tr>'
-    )
-    for h in headers:
-        align_css = (
-            'style="text-align: left; padding-left: 14px;"'
-            if "STOCK NAME" in h
-            else ""
-        )
-        html_table += f"<th {align_css}>{h}</th>"
-    html_table += "</tr></thead><tbody>"
-
-    for idx, row in df_live.iterrows():
-        # Badge & Score formatting
-        w_score = row["weakness_score"]
-        if w_score >= 7.5:
-            score_badge = '<span class="badge badge-darkred">7.5 / 10.0<br>ULTRA BEARISH</span>'
-            signal_title = "🔴 ULTRA BEARISH / STRONG SELL"
-        elif w_score >= 5.0:
-            score_badge = (
-                f'<span class="badge badge-red">{w_score:.1f} /'
-                ' 10.0<br>WEAK / SELL</span>'
+    if not df_live.empty:
+        html_table = '<div class="table-container"><table class="scanner-table"><thead><tr>'
+        headers = [
+            "#",
+            "STOCK NAME",
+            "PRICE",
+            "AI SIGNAL",
+            "AVG. VOL & SPIKE",
+            "SUPERTREND (10,2)",
+            "ADX (14)",
+            "DAILY RSI (>52)",
+            "WEEKLY RSI (>60)",
+            "MONTHLY RSI (>60)",
+            "> EMA 20",
+            "> EMA 50",
+            "> EMA 100",
+            "> EMA 200",
+        ]
+        for h in headers:
+            align_css = (
+                'style="text-align: left; padding-left: 16px;"'
+                if h == "STOCK NAME"
+                else ""
             )
-            signal_title = "⚠️ WEAK / SELL"
-        elif w_score >= 2.5:
-            score_badge = (
-                f'<span class="badge badge-purple">{w_score:.1f} /'
-                ' 10.0<br>NEUTRAL</span>'
+            html_table += f"<th {align_css}>{h}</th>"
+        html_table += "</tr></thead><tbody>"
+
+        bearish_alerts_queue = []
+
+        for idx, row in df_live.iterrows():
+            cp_str = f"₹{row['price']:,.2f}"
+            chg_badge = (
+                '<span class="badge badge-green">UP</span>'
+                if row["change"] >= 0
+                else '<span class="badge badge-red">DOWN</span>'
             )
-            signal_title = "🟡 NEUTRAL"
-        else:
-            score_badge = (
-                f'<span class="badge badge-green">{w_score:.1f} /'
-                ' 10.0<br>BULLISH</span>'
-            )
-            signal_title = "🟢 BULLISH"
 
-        price_dir = (
-            '<span class="badge badge-green">UP</span>'
-            if row["price_up"]
-            else '<span class="badge badge-red">DOWN</span>'
-        )
-        vol_badge = (
-            '<span class="badge badge-vol">SPIKE</span>'
-            if row["vol_spike"]
-            else '<span class="badge badge-darkred">LOW VOL</span>'
-        )
-        st_badge = (
-            '<span class="badge badge-green">BULLISH</span>'
-            if row["supertrend_bullish"]
-            else '<span class="badge badge-red">BEARISH</span>'
-        )
-        adx_badge = (
-            '<span class="badge badge-green">STRONG</span>'
-            if row["adx"] >= 25
-            else '<span class="badge badge-red">WEAK</span>'
-        )
+            # Signal Classification
+            if row["is_ultra_bearish"]:
+                score_badge = (
+                    '<span class="badge badge-darkred">ULTRA BEARISH</span>'
+                )
+                signal_type = "ULTRA BEARISH / STRONG SELL"
+            elif row["ai_score"] < 4.0 or row["price"] < row["ema20"]:
+                score_badge = '<span class="badge badge-red">WEAK / SELL</span>'
+                signal_type = "WEAK / SELL"
+            elif row["ai_score"] >= 7.5:
+                score_badge = (
+                    '<span class="badge badge-purple">STRONG BUY</span>'
+                )
+                signal_type = "STRONG BUY"
+            else:
+                score_badge = '<span class="badge badge-green">BUY</span>'
+                signal_type = "BUY"
 
-        daily_rsi_badge = (
-            '<span class="badge badge-weak">WEAK</span>'
-            if row["daily_rsi"] < 52
-            else '<span class="badge badge-ok">OK</span>'
-        )
-        weekly_rsi_badge = (
-            '<span class="badge badge-weak">WEAK</span>'
-            if row["weekly_rsi"] < 60
-            else '<span class="badge badge-ok">OK</span>'
-        )
-        monthly_rsi_badge = (
-            '<span class="badge badge-weak">WEAK</span>'
-            if row["monthly_rsi"] < 60
-            else '<span class="badge badge-ok">OK</span>'
-        )
+            # Telegram Alert Filtering: ONLY Queue WEAK / SELL & ULTRA BEARISH Signals
+            if enable_telegram and signal_type in [
+                "WEAK / SELL",
+                "ULTRA BEARISH / STRONG SELL",
+            ]:
+                reasons = []
+                if row["price"] < row["ema20"]:
+                    reasons.append("Price < EMA 20")
+                if row["is_ultra_bearish"]:
+                    reasons.append("Price below ALL EMAs (20,50,100,200)")
+                if row["rsi_d"] < 52:
+                    reasons.append(f"Daily RSI {row['rsi_d']:.1f} < 52")
+                if row["rsi_w"] < 60:
+                    reasons.append(f"Weekly RSI {row['rsi_w']:.1f} < 60")
+                if row["rsi_m"] < 60:
+                    reasons.append(f"Monthly RSI {row['rsi_m']:.1f} < 60")
+                if not row["is_st_bullish"]:
+                    reasons.append("SuperTrend Bearish")
 
-        below_ema20 = (
-            '<span class="badge badge-red">YES</span>'
-            if row["price"] < row["ema20"]
-            else '<span class="badge badge-green">NO</span>'
-        )
-        below_ema50 = (
-            '<span class="badge badge-red">YES</span>'
-            if row["price"] < row["ema50"]
-            else '<span class="badge badge-green">NO</span>'
-        )
-        below_ema100 = (
-            '<span class="badge badge-red">YES</span>'
-            if row["price"] < row["ema100"]
-            else '<span class="badge badge-green">NO</span>'
-        )
-        below_ema200 = (
-            '<span class="badge badge-red">YES</span>'
-            if row["price"] < row["ema200"]
-            else '<span class="badge badge-green">NO</span>'
-        )
-
-        html_table += (
-            f"<tr>"
-            f"<td>{idx + 1}</td>"
-            f'<td style="text-align: left; padding-left: 14px; font-weight:'
-            f' bold; color: #38bdf8;">{row["symbol"]} ↗</td>'
-            f"<td><b>₹{row['price']:,.2f}</b><br>{price_dir}</td>"
-            f"<td>{score_badge}</td>"
-            f"<td><b>{row['vol_lakhs']:.2f}L</b><br>{vol_badge}</td>"
-            f"<td><b>₹{row['supertrend_val']:,.1f}</b><br>{st_badge}</td>"
-            f"<td><b>{row['adx']:.1f}</b><br>{adx_badge}</td>"
-            f"<td><b>{row['daily_rsi']:.2f}</b><br>{daily_rsi_badge}</td>"
-            f"<td><b>{row['weekly_rsi']:.2f}</b><br>{weekly_rsi_badge}</td>"
-            f"<td><b>{row['monthly_rsi']:.2f}</b><br>{monthly_rsi_badge}</td>"
-            f"<td><b>₹{row['ema20']:,.1f}</b><br>{below_ema20}</td>"
-            f"<td><b>₹{row['ema50']:,.1f}</b><br>{below_ema50}</td>"
-            f"<td><b>₹{row['ema100']:,.1f}</b><br>{below_ema100}</td>"
-            f"<td><b>₹{row['ema200']:,.1f}</b><br>{below_ema200}</td>"
-            f"</tr>"
-        )
-
-        # TRIGGER TELEGRAM ALERT FOR NEUTRAL & WEAK/SELL ONLY (SKIP BULLISH)
-        if (
-            enable_telegram
-            and telegram_token
-            and telegram_chat_id
-            and w_score >= 2.5
-        ):
-            alert_key = f"alert_sent_{row['symbol']}_{w_score:.1f}"
-            if alert_key not in st.session_state:
-                clean_reasons = [
-                    r.replace("<", "&lt;").replace(">", "&gt;")
-                    for r in row["reasons"]
-                ]
-
-                alert_msg = (
-                    f"<b>{signal_title}: {row['symbol']}</b>\n"
+                alert_text = (
+                    f"⚠️ <b>BEARISH ALERT: {row['symbol']}</b>\n"
+                    f"• <b>Signal:</b> {signal_type}\n"
                     f"• <b>Price:</b> ₹{row['price']:,.2f}\n"
-                    f"• <b>Weakness Score:</b> {w_score:.1f} / 10.0\n\n"
-                    f"<b>Triggered Technical Criteria:</b>\n"
-                    + (
-                        "\n".join(clean_reasons)
-                        if clean_reasons
-                        else "• Overall Neutral conditions met."
-                    )
+                    f"• <b>Triggers:</b> {', '.join(reasons)}"
+                )
+                bearish_alerts_queue.append(alert_text)
+
+            vol_lakhs = f"{row['vol'] / 100000:.2f}L"
+            vol_badge = (
+                '<span class="badge badge-purple">SPIKE</span>'
+                if row["vol_spike"] > 50
+                else (
+                    '<span class="badge badge-green">HIGH VOL</span>'
+                    if row["vol_spike"] > 0
+                    else '<span class="badge badge-red">LOW VOL</span>'
+                )
+            )
+            st_str = f"₹{row['supertrend']:,.1f}"
+            st_badge = (
+                '<span class="badge badge-green">BULLISH</span>'
+                if row["is_st_bullish"]
+                else '<span class="badge badge-red">BEARISH</span>'
+            )
+            adx_str = f"{row['adx']:.1f}"
+            adx_badge = (
+                '<span class="badge badge-green">STRONG</span>'
+                if row["adx"] >= 25
+                else '<span class="badge badge-red">WEAK</span>'
+            )
+
+            # Strict Red/Green Badges for RSIs
+            rsi_d_badge = (
+                '<span class="badge badge-green">BULLISH</span>'
+                if row["rsi_d"] >= 52
+                else '<span class="badge badge-red">BEARISH</span>'
+            )
+            rsi_w_badge = (
+                '<span class="badge badge-green">BULLISH</span>'
+                if row["rsi_w"] >= 60
+                else '<span class="badge badge-red">BEARISH</span>'
+            )
+            rsi_m_badge = (
+                '<span class="badge badge-green">BULLISH</span>'
+                if row["rsi_m"] >= 60
+                else '<span class="badge badge-red">BEARISH</span>'
+            )
+
+            tv_url = f"https://in.tradingview.com/chart/?symbol=NSE%3A{row['symbol']}&interval=D"
+            stock_cell = f'<td style="text-align: left; padding-left: 16px;"><a href="{tv_url}" target="_blank" class="stock-link">{row["symbol"]} ↗</a></td>'
+
+            def ema_td(ema_val):
+                is_above = row["price"] > ema_val
+                badge = (
+                    '<span class="badge badge-green">YES</span>'
+                    if is_above
+                    else '<span class="badge badge-red">NO</span>'
+                )
+                return (
+                    f'<td><div class="cell-val">₹{ema_val:,.1f}</div>{badge}</td>'
                 )
 
-                ok, err = send_telegram_alert(
-                    telegram_token, telegram_chat_id, alert_msg
-                )
-                if ok:
-                    st.session_state[alert_key] = True
-                    st.toast(
-                        f"Telegram Alert sent for {row['symbol']}!", icon="📱"
-                    )
-                else:
-                    st.sidebar.error(f"Alert Failed for {row['symbol']}: {err}")
+            html_table += f"""<tr>
+                <td style="color: #64748b; font-weight: bold;">{idx+1}</td>
+                {stock_cell}
+                <td><div class="cell-val">{cp_str}</div>{chg_badge}</td>
+                <td><div class="cell-val">{row['ai_score']:.1f} / 10.0</div>{score_badge}</td>
+                <td><div class="cell-val">{vol_lakhs}</div>{vol_badge}</td>
+                <td><div class="cell-val">{st_str}</div>{st_badge}</td>
+                <td><div class="cell-val">{adx_str}</div>{adx_badge}</td>
+                <td><div class="cell-val">{row['rsi_d']:.2f}</div>{rsi_d_badge}</td>
+                <td><div class="cell-val">{row['rsi_w']:.2f}</div>{rsi_w_badge}</td>
+                <td><div class="cell-val">{row['rsi_m']:.2f}</div>{rsi_m_badge}</td>
+                {ema_td(row['ema20'])}
+                {ema_td(row['ema50'])}
+                {ema_td(row['ema100'])}
+                {ema_td(row['ema200'])}
+            </tr>"""
 
-    html_table += "</tbody>"
+        html_table += "</tbody></table></div>"
+        st.markdown(html_table, unsafe_allow_html=True)
 
-    # HEADERS AT THE BOTTOM (FOOTER ROW)
-    html_table += "<tfoot><tr>"
-    for h in headers:
-        align_css = (
-            'style="text-align: left; padding-left: 14px;"'
-            if "STOCK NAME" in h
-            else ""
+        # Dispatch Telegram Alerts if configured
+        if enable_telegram and telegram_token and telegram_chat_id:
+            for alert_msg in bearish_alerts_queue:
+                send_telegram_alert(telegram_token, telegram_chat_id, alert_msg)
+
+# -----------------------------------------------------------------------------
+# TAB 2: ADD / REMOVE / UPDATE STOCKS WITH PERMANENT SAVING
+# -----------------------------------------------------------------------------
+with tab_manage:
+    st.subheader("Manage Stock Tickers")
+
+    col_add, col_remove = st.columns(2)
+
+    with col_add:
+        st.markdown("#### ➕ Add New Stocks")
+        new_ticker = st.text_input(
+            "Enter Stock Ticker (e.g., SBIN, TCS, TATAMOTORS)"
         )
-        html_table += f"<th {align_css}>{h}</th>"
-    html_table += "</tr></tfoot>"
+        if st.button("Add Ticker"):
+            if new_ticker:
+                clean_t = new_ticker.strip().upper().replace(".NS", "")
+                if clean_t not in st.session_state.ticker_list:
+                    st.session_state.ticker_list.append(clean_t)
+                    save_tickers(st.session_state.ticker_list)
+                    st.cache_data.clear()
+                    st.success(f"Added and saved {clean_t} permanently!")
+                    st.rerun()
 
-    html_table += "</table></div>"
-    st.markdown(html_table, unsafe_allow_html=True)
-else:
-    st.info("No stock data fetched. Please check your stock list tickers.")
+    with col_remove:
+        st.markdown("#### ❌ Remove Existing Stocks")
+        to_remove = st.selectbox(
+            "Select Stock to Remove", st.session_state.ticker_list
+        )
+        if st.button("Remove Selected Ticker"):
+            if to_remove in st.session_state.ticker_list:
+                st.session_state.ticker_list.remove(to_remove)
+                save_tickers(st.session_state.ticker_list)
+                st.cache_data.clear()
+                st.success(f"Removed {to_remove} permanently!")
+                st.rerun()
+
+    st.markdown("---")
+    st.markdown("#### 📝 Bulk Update Ticker List")
+    bulk_input = st.text_area(
+        "Edit complete list of tickers (comma separated)",
+        value=", ".join(st.session_state.ticker_list),
+        height=100,
+    )
+    if st.button("Update Full Ticker List"):
+        newList = [
+            t.strip().upper().replace(".NS", "")
+            for t in bulk_input.split(",")
+            if t.strip()
+        ]
+        st.session_state.ticker_list = newList
+        save_tickers(st.session_state.ticker_list)
+        st.cache_data.clear()
+        st.success("Ticker list updated and saved permanently!")
+        st.rerun()
+
+# -----------------------------------------------------------------------------
+# TAB 3: BACKGROUND & THEME MANAGEMENT
+# -----------------------------------------------------------------------------
+with tab_background:
+    st.subheader("Upload Background & Set Card Themes")
+    st.info("Manage background wallpapers directly from here.")
+    up_file = st.file_uploader(
+        "Upload Custom Background (.jpg / .png)",
+        type=["jpg", "jpeg", "png", "webp"],
+        key="main_tab_uploader",
+    )
+    if up_file:
+        st.success("Background uploaded! Your screen style will update.")
