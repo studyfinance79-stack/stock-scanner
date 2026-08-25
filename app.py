@@ -373,13 +373,22 @@ if not df_live.empty:
             score_badge = '<span class="badge badge-darkred">7.5 / 10.0<br>ULTRA BEARISH</span>'
             signal_title = "🔴 ULTRA BEARISH / STRONG SELL"
         elif w_score >= 5.0:
-            score_badge = '<span class="badge badge-red">' + f"{w_score:.1f} / 10.0<br>WEAK / SELL</span>"
+            score_badge = (
+                f'<span class="badge badge-red">{w_score:.1f} /'
+                ' 10.0<br>WEAK / SELL</span>'
+            )
             signal_title = "⚠️ WEAK / SELL"
         elif w_score >= 2.5:
-            score_badge = '<span class="badge badge-purple">' + f"{w_score:.1f} / 10.0<br>NEUTRAL</span>"
+            score_badge = (
+                f'<span class="badge badge-purple">{w_score:.1f} /'
+                ' 10.0<br>NEUTRAL</span>'
+            )
             signal_title = "🟡 NEUTRAL"
         else:
-            score_badge = '<span class="badge badge-green">' + f"{w_score:.1f} / 10.0<br>BULLISH</span>"
+            score_badge = (
+                f'<span class="badge badge-green">{w_score:.1f} /'
+                ' 10.0<br>BULLISH</span>'
+            )
             signal_title = "🟢 BULLISH"
 
         price_dir = (
@@ -440,24 +449,25 @@ if not df_live.empty:
             else '<span class="badge badge-green">NO</span>'
         )
 
-        html_table += f"""
-        <tr>
-            <td>{idx + 1}</td>
-            <td style="text-align: left; padding-left: 14px; font-weight: bold; color: #38bdf8;">{row['symbol']} ↗</td>
-            <td><b>₹{row['price']:,.2f}</b><br>{price_dir}</td>
-            <td>{score_badge}</td>
-            <td><b>{row['vol_lakhs']:.2f}L</b><br>{vol_badge}</td>
-            <td><b>₹{row['supertrend_val']:,.1f}</b><br>{st_badge}</td>
-            <td><b>{row['adx']:.1f}</b><br>{adx_badge}</td>
-            <td><b>{row['daily_rsi']:.2f}</b><br>{daily_rsi_badge}</td>
-            <td><b>{row['weekly_rsi']:.2f}</b><br>{weekly_rsi_badge}</td>
-            <td><b>{row['monthly_rsi']:.2f}</b><br>{monthly_rsi_badge}</td>
-            <td><b>₹{row['ema20']:,.1f}</b><br>{below_ema20}</td>
-            <td><b>₹{row['ema50']:,.1f}</b><br>{below_ema50}</td>
-            <td><b>₹{row['ema100']:,.1f}</b><br>{below_ema100}</td>
-            <td><b>₹{row['ema200']:,.1f}</b><br>{below_ema200}</td>
-        </tr>
-        """
+        html_table += (
+            f"<tr>"
+            f"<td>{idx + 1}</td>"
+            f'<td style="text-align: left; padding-left: 14px; font-weight:'
+            f' bold; color: #38bdf8;">{row["symbol"]} ↗</td>'
+            f"<td><b>₹{row['price']:,.2f}</b><br>{price_dir}</td>"
+            f"<td>{score_badge}</td>"
+            f"<td><b>{row['vol_lakhs']:.2f}L</b><br>{vol_badge}</td>"
+            f"<td><b>₹{row['supertrend_val']:,.1f}</b><br>{st_badge}</td>"
+            f"<td><b>{row['adx']:.1f}</b><br>{adx_badge}</td>"
+            f"<td><b>{row['daily_rsi']:.2f}</b><br>{daily_rsi_badge}</td>"
+            f"<td><b>{row['weekly_rsi']:.2f}</b><br>{weekly_rsi_badge}</td>"
+            f"<td><b>{row['monthly_rsi']:.2f}</b><br>{monthly_rsi_badge}</td>"
+            f"<td><b>₹{row['ema20']:,.1f}</b><br>{below_ema20}</td>"
+            f"<td><b>₹{row['ema50']:,.1f}</b><br>{below_ema50}</td>"
+            f"<td><b>₹{row['ema100']:,.1f}</b><br>{below_ema100}</td>"
+            f"<td><b>₹{row['ema200']:,.1f}</b><br>{below_ema200}</td>"
+            f"</tr>"
+        )
 
         # TRIGGER TELEGRAM ALERT FOR NEUTRAL & WEAK/SELL ONLY (SKIP BULLISH)
         if (
@@ -468,7 +478,6 @@ if not df_live.empty:
         ):
             alert_key = f"alert_sent_{row['symbol']}_{w_score:.1f}"
             if alert_key not in st.session_state:
-                # Sanitize HTML tags (< and >) so Telegram parser accepts the message
                 clean_reasons = [
                     r.replace("<", "&lt;").replace(">", "&gt;")
                     for r in row["reasons"]
