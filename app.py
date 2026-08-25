@@ -96,7 +96,9 @@ if refresh_option != "Off":
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 📱 Telegram Alerts (WEAK / SELL Only)")
-enable_telegram = st.sidebar.checkbox("Enable Telegram Notifications", value=False)
+enable_telegram = st.sidebar.checkbox(
+    "Enable Telegram Notifications", value=False
+)
 telegram_token = st.sidebar.text_input(
     "Bot Token", type="password", help="Enter Bot Father Token"
 )
@@ -124,13 +126,19 @@ def get_base64_image(target_name):
         return None, None
 
     target_clean = (
-        os.path.splitext(target_name)[0].lower().replace(" ", "").replace("_", "")
+        os.path.splitext(target_name)[0]
+        .lower()
+        .replace(" ", "")
+        .replace("_", "")
     )
 
     try:
         for file in os.listdir("."):
             file_clean = (
-                os.path.splitext(file)[0].lower().replace(" ", "").replace("_", "")
+                os.path.splitext(file)[0]
+                .lower()
+                .replace(" ", "")
+                .replace("_", "")
             )
             ext = os.path.splitext(file)[1].lower()
 
@@ -526,7 +534,9 @@ with tab_scanner:
         df_live = fetch_live_stock_data(st.session_state.ticker_list)
 
     if not df_live.empty:
-        html_table = '<div class="table-container"><table class="scanner-table"><thead><tr>'
+        html_table = (
+            '<div class="table-container"><table class="scanner-table"><thead><tr>'
+        )
         headers = [
             "#",
             "STOCK NAME",
@@ -657,9 +667,7 @@ with tab_scanner:
                     if is_above
                     else '<span class="badge badge-red">NO</span>'
                 )
-                return (
-                    f'<td><div class="cell-val">₹{ema_val:,.1f}</div>{badge}</td>'
-                )
+                return f'<td><div class="cell-val">₹{ema_val:,.1f}</div>{badge}</td>'
 
             html_table += f"""<tr>
                 <td style="color: #64748b; font-weight: bold;">{idx+1}</td>
@@ -678,13 +686,23 @@ with tab_scanner:
                 {ema_td(row['ema200'])}
             </tr>"""
 
-        html_table += "</tbody></table></div>"
+        html_table += "</tbody><tfoot><tr>"
+        for h in headers:
+            align_css = (
+                'style="text-align: left; padding-left: 16px;"'
+                if h == "STOCK NAME"
+                else ""
+            )
+            html_table += f"<th {align_css}>{h}</th>"
+        html_table += "</tr></tfoot></table></div>"
         st.markdown(html_table, unsafe_allow_html=True)
 
         # Dispatch Telegram Alerts if configured
         if enable_telegram and telegram_token and telegram_chat_id:
             for alert_msg in bearish_alerts_queue:
-                send_telegram_alert(telegram_token, telegram_chat_id, alert_msg)
+                send_telegram_alert(
+                    telegram_token, telegram_chat_id, alert_msg
+                )
 
 # -----------------------------------------------------------------------------
 # TAB 2: ADD / REMOVE / UPDATE STOCKS WITH PERMANENT SAVING
