@@ -1,4 +1,3 @@
-import re
 import numpy as np
 import pandas as pd
 import requests
@@ -14,20 +13,26 @@ st.set_page_config(
 # Auto-refresh app every 60 seconds
 st_autorefresh(interval=60000, key="stock_scanner_autorefresh")
 
-# Custom CSS for UI & Sticky Headers / Bottom Footers
+# Original HD Styling & Glassmorphism CSS
 st.markdown(
     """
 <style>
     .stApp {
-        background-color: #0b132b;
+        background: linear-gradient(rgba(11, 19, 43, 0.85), rgba(11, 19, 43, 0.85)), 
+                    url("https://images.unsplash.com/photo-1518837695005-2083093ee35b?q=80&w=2070&auto=format&fit=crop");
+        background-size: cover;
+        background-attachment: fixed;
         color: #ffffff;
     }
     .table-container {
         max-height: 78vh;
         overflow-y: auto;
         border: 2px solid #0284c7;
-        border-radius: 8px;
+        border-radius: 10px;
         margin-top: 10px;
+        box-shadow: 0 0 20px rgba(2, 132, 199, 0.35);
+        background: rgba(11, 19, 43, 0.75);
+        backdrop-filter: blur(8px);
     }
     .scanner-table {
         width: 100%;
@@ -58,31 +63,32 @@ st.markdown(
     }
     .scanner-table td {
         padding: 8px 6px;
-        border: 1px solid #1e293b;
+        border: 1px solid rgba(2, 132, 199, 0.25);
         text-align: center;
         vertical-align: middle;
     }
     .badge {
         padding: 4px 8px;
-        border-radius: 4px;
+        border-radius: 6px;
         font-weight: bold;
-        font-size: 11px;
+        font-size: 10px;
         display: inline-block;
+        border: 1px solid transparent;
+        line-height: 1.3;
     }
-    .badge-darkred { background-color: #7f1d1d; color: #fca5a5; }
-    .badge-red { background-color: #991b1b; color: #fecaca; }
-    .badge-purple { background-color: #581c87; color: #e9d5ff; }
-    .badge-green { background-color: #065f46; color: #a7f3d0; }
-    .badge-vol { background-color: #312e81; color: #c7d2fe; }
-    .badge-weak { background-color: #831843; color: #fbcfe8; }
-    .badge-ok { background-color: #064e3b; color: #a7f3d0; }
+    .badge-darkred { background-color: rgba(127, 29, 29, 0.8); color: #fca5a5; border-color: #ef4444; }
+    .badge-red { background-color: rgba(153, 27, 27, 0.8); color: #fecaca; border-color: #f87171; }
+    .badge-purple { background-color: rgba(88, 28, 135, 0.8); color: #e9d5ff; border-color: #c084fc; }
+    .badge-green { background-color: rgba(6, 95, 70, 0.8); color: #a7f3d0; border-color: #34d399; }
+    .badge-vol-high { background-color: rgba(6, 95, 70, 0.8); color: #a7f3d0; border-color: #34d399; }
+    .badge-vol-low { background-color: rgba(153, 27, 27, 0.8); color: #fecaca; border-color: #f87171; }
+    .badge-vol-spike { background-color: rgba(88, 28, 135, 0.8); color: #e9d5ff; border-color: #c084fc; }
 </style>
 """,
     unsafe_allow_html=True,
 )
 
 
-# Helper: Telegram Alert Sender
 def send_telegram_alert(token, chat_id, message):
     try:
         url = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -96,7 +102,6 @@ def send_telegram_alert(token, chat_id, message):
         return False, str(e)
 
 
-# Technical Indicator Calculations
 def calculate_rsi(series, period=14):
     delta = series.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
@@ -252,28 +257,24 @@ for symbol in stocks:
         prev_price = df_daily["Close"].iloc[-2]
         price_change_up = latest_price >= prev_price
 
-        # EMAs
         ema20 = df_daily["Close"].ewm(span=20, adjust=False).mean().iloc[-1]
         ema50 = df_daily["Close"].ewm(span=50, adjust=False).mean().iloc[-1]
         ema100 = df_daily["Close"].ewm(span=100, adjust=False).mean().iloc[-1]
         ema200 = df_daily["Close"].ewm(span=200, adjust=False).mean().iloc[-1]
 
-        # RSIs
         daily_rsi = calculate_rsi(df_daily["Close"]).iloc[-1]
         weekly_rsi = calculate_rsi(df_weekly["Close"]).iloc[-1]
         monthly_rsi = calculate_rsi(df_monthly["Close"]).iloc[-1]
 
-        # ADX & Supertrend
         adx_val = calculate_adx(df_daily)
         st_val, st_bullish = calculate_supertrend(df_daily)
 
-        # Volume
         avg_vol_20 = df_daily["Volume"].tail(20).mean()
         latest_vol = df_daily["Volume"].iloc[-1]
         has_vol_spike = latest_vol > (1.8 * avg_vol_20)
+        is_high_vol = latest_vol > (1.2 * avg_vol_20)
         vol_lakhs = latest_vol / 100000
 
-        # Weakness Scoring Logic
         weakness_score = 0.0
         reasons = []
 
@@ -316,6 +317,7 @@ for symbol in stocks:
             "weakness_score": weakness_score,
             "vol_lakhs": vol_lakhs,
             "vol_spike": has_vol_spike,
+            "vol_high": is_high_vol,
             "supertrend_val": st_val,
             "supertrend_bullish": st_bullish,
             "adx": adx_val,
@@ -333,7 +335,6 @@ for symbol in stocks:
 
 df_live = pd.DataFrame(scanner_data)
 
-# Main UI Display
 st.title("⚡ Technical Stock Scanner")
 
 headers = [
@@ -367,7 +368,6 @@ if not df_live.empty:
     html_table += "</tr></thead><tbody>"
 
     for idx, row in df_live.iterrows():
-        # Badge & Score formatting
         w_score = row["weakness_score"]
         if w_score >= 7.5:
             score_badge = '<span class="badge badge-darkred">7.5 / 10.0<br>ULTRA BEARISH</span>'
@@ -387,7 +387,7 @@ if not df_live.empty:
         else:
             score_badge = (
                 f'<span class="badge badge-green">{w_score:.1f} /'
-                ' 10.0<br>BULLISH</span>'
+                ' 10.0<br>BULLISH / STRONG BULLISH</span>'
             )
             signal_title = "🟢 BULLISH"
 
@@ -396,11 +396,14 @@ if not df_live.empty:
             if row["price_up"]
             else '<span class="badge badge-red">DOWN</span>'
         )
-        vol_badge = (
-            '<span class="badge badge-vol">SPIKE</span>'
-            if row["vol_spike"]
-            else '<span class="badge badge-darkred">LOW VOL</span>'
-        )
+
+        if row["vol_spike"]:
+            vol_badge = '<span class="badge badge-vol-spike">SPIKE</span>'
+        elif row["vol_high"]:
+            vol_badge = '<span class="badge badge-vol-high">HIGH VOL</span>'
+        else:
+            vol_badge = '<span class="badge badge-vol-low">LOW VOL</span>'
+
         st_badge = (
             '<span class="badge badge-green">BULLISH</span>'
             if row["supertrend_bullish"]
@@ -413,19 +416,19 @@ if not df_live.empty:
         )
 
         daily_rsi_badge = (
-            '<span class="badge badge-weak">WEAK</span>'
+            '<span class="badge badge-red">WEAK</span>'
             if row["daily_rsi"] < 52
-            else '<span class="badge badge-ok">OK</span>'
+            else '<span class="badge badge-green">OK</span>'
         )
         weekly_rsi_badge = (
-            '<span class="badge badge-weak">WEAK</span>'
+            '<span class="badge badge-red">WEAK</span>'
             if row["weekly_rsi"] < 60
-            else '<span class="badge badge-ok">OK</span>'
+            else '<span class="badge badge-green">OK</span>'
         )
         monthly_rsi_badge = (
-            '<span class="badge badge-weak">WEAK</span>'
+            '<span class="badge badge-red">WEAK</span>'
             if row["monthly_rsi"] < 60
-            else '<span class="badge badge-ok">OK</span>'
+            else '<span class="badge badge-green">OK</span>'
         )
 
         below_ema20 = (
@@ -469,7 +472,6 @@ if not df_live.empty:
             f"</tr>"
         )
 
-        # TRIGGER TELEGRAM ALERT FOR NEUTRAL & WEAK/SELL ONLY (SKIP BULLISH)
         if (
             enable_telegram
             and telegram_token
@@ -482,7 +484,6 @@ if not df_live.empty:
                     r.replace("<", "&lt;").replace(">", "&gt;")
                     for r in row["reasons"]
                 ]
-
                 alert_msg = (
                     f"<b>{signal_title}: {row['symbol']}</b>\n"
                     f"• <b>Price:</b> ₹{row['price']:,.2f}\n"
@@ -508,7 +509,7 @@ if not df_live.empty:
 
     html_table += "</tbody>"
 
-    # HEADERS AT THE BOTTOM (FOOTER ROW)
+    # FOOTER ROW WITH COLUMN HEADERS
     html_table += "<tfoot><tr>"
     for h in headers:
         align_css = (
