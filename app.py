@@ -34,13 +34,13 @@ DEFAULT_TICKERS = [
     "AEROFLEX",
     "BLSE",
     "DATAPATTNS",
-    "RELIANCE",
-    "TCS",
-    "INFY",
-    "TATAMOTORS",
-    "ICICIBANK",
-    "SBIN",
-    "HAL",
+    "IPCALAB",
+    "KANORICHEM",
+    "MUNJALAU",
+    "NETWEB",
+    "NITINSPIN",
+    "PREMIERPOL",
+    "SONACOMS",
 ]
 
 
